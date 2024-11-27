@@ -115,12 +115,18 @@ async function renderProfile (el, actor) {
   const key = `profile:${actor}`
 
   // helpers
+  const isOlderThan = (time, period) => {
+    return time && NOW - (time + period) > 0
+  }
   const { format } = new Intl.NumberFormat('en-US', {
     // notation: 'compact',
     // compactDisplay: 'short'
   })
-  const isOlderThan = (time, period) => {
-    return time && NOW - (time + period) > 0
+  const stripEmojis = (text) => {
+    return text.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
+  }
+  const makeIcon = (icon, title) => {
+    return `<span style="font-size:1.2em" title="${title}">${icon}</span>`
   }
 
   // load profile from storage
@@ -156,24 +162,35 @@ async function renderProfile (el, actor) {
   if (profile) {
     // variables
     let { description, followsCount, followersCount, postsCount } = profile
-    let info = `Posts: ${format(postsCount)}, Followers: ${format(followersCount)}, Follows: ${format(followsCount)}`
 
-    // if we have a description, condense it and save the profile
+    // if we have a description, condense it
     description = description?.trim()
     if (description) {
-      description = description
+      description = stripEmojis(description)
         .split(/[\n\r]+/g)
         .filter(line => line.trim().length > 0)
         .map(line => line.trim())
         .join(' | ')
     }
 
-    // prepare html
-    const style = isOlderThan(created, WEEK)
+    // build html
+    const ageStyle = isOlderThan(created, WEEK * 2)
       ? 'opacity: 0.6'
       : 'color: #5292d7'
-    const htmlDescription = `<div style="${style}; white-space: pre-wrap">${description}</div>`
-    const htmlInfo = `<div style="opacity: 0.6; ${description ? 'margin-top: 0.4em;' : ''}">${info}</div>`
+    const postsIcon = postsCount >= 25
+      ? makeIcon('✅', 'User is engaged')
+      : postsCount > 1
+        ? makeIcon('📝️', 'User has posted')
+        : ''
+    const statusIcon = followersCount > followsCount
+      ? makeIcon('🔥', 'User is popular')
+      : ''
+    const info = `
+      ${postsIcon} <span style="opacity: 0.6">Posts: ${format(postsCount)} |</span> 
+      ${statusIcon} <span style="opacity: 0.6">Followers: ${format(followersCount)} | Following: ${format(followsCount)}</span>
+      `
+    const htmlDescription = `<div style="${ageStyle}; white-space: pre-wrap">${description}</div>`
+    const htmlInfo = `<div style="${description ? 'margin-top: 0.4em;' : ''}">${info}</div>`
 
     // set html
     el.innerHTML = description
