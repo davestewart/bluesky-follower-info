@@ -284,10 +284,10 @@ function renderInfo (el, profile) {
     description = description?.trim()
     if (description) {
       description = stripEmojis(description)
-        .split(/[\n\r]+/g)
-        .filter(line => line.trim().length > 0)
-        .map(line => line.trim())
-        .join(' | ')
+        .split(/[\n\r]+/g) // linebreaks
+        .map(line => line.replace(/[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u200F\u202F\u205F\u3000\u2028\u2029\uFE0F]/g, ' ').trim()) // remove space characters
+        .filter(line => line.length > 0) // trim empty lines
+        .join(' | ') // join
     }
 
     // build html
