@@ -2,7 +2,31 @@
 // utils
 // ---------------------------------------------------------------------------------------------------------------------
 
-const storage = {
+function isOlderThan (time, days = 1) {
+  const DAY = 1000 * 60 * 60 * 24
+  const period = DAY * days
+  return time && Date.now() - (time + period) > 0
+}
+
+function stripEmojis (text) {
+  const rx = /[\u{1F000}-\u{1F9FF}]|[\u2600-\u27FF]|[\u2300-\u23FF}]|[\u{2B00}-\u{2BFF}]|[\u2900-\u297F]|[\u2700-\u27BF]|[\uE000-\uF8FF]|[\u{1F900}-\u{1F9FF}]|[\u2E00-\u2E7F]|\uFE0F/gu
+  return text.replace(rx, '')
+}
+
+function makeIcon (icon, title) {
+  return `<span style="font-size:1.2em" title="${title}">${icon}</span>`
+}
+
+const { format } = new Intl.NumberFormat('en-US', {
+  // notation: 'compact',
+  // compactDisplay: 'short'
+})
+
+// ---------------------------------------------------------------------------------------------------------------------
+// classes
+// ---------------------------------------------------------------------------------------------------------------------
+
+const Storage = {
   async get (key) {
     const { [key]: value } = await chrome.storage.local.get({ [key]: {} })
     return value
@@ -12,16 +36,136 @@ const storage = {
   }
 }
 
-const API = {
-  url: '',
-  token: ''
+const Api = {
+  config: {
+    url: '',
+    token: ''
+  },
+
+  async init () {
+    const result = await chrome.runtime.sendMessage({ type: 'GET_API_INFO' })
+    if (result) {
+      Object.assign(this.config, result)
+      return result
+    }
+  },
+
+  async get (path, data) {
+    return this.call('get', path, data)
+  },
+
+  async post (path, data) {
+    return this.call('post', path, data)
+  },
+
+  call (method, path, data = undefined) {
+    // variables
+    const isGet = method.toLowerCase() === 'get'
+    const { url, token } = this.config
+    const options = {
+      headers: {
+        authorization: `Bearer ${token}`
+      }
+    }
+
+    // add body for non-get requests if data is provided
+    if (data && !isGet) {
+      options.body = JSON.stringify(data)
+    }
+
+    // for get requests with data, append as query parameters
+    else if (data && isGet) {
+      const queryParams = new URLSearchParams(data).toString()
+      path = `${path}${path.includes('?') ? '&' : '?'}${queryParams}`
+    }
+
+    // make the request
+    return fetch(`${url}xrpc/${path}`, options)
+      .then(async (res) => {
+        if (!res.ok) {
+          // if the token is invalid, get the latest
+          if (res.status === 401) {
+            await this.init()
+            return this.call(method, path, data)
+          }
+          return null
+        }
+
+        // return
+        const data = await res.json()
+        return data
+      })
+      .catch(error => {
+        console.error('Fetch error:', error)
+        throw error
+      })
+  }
 }
 
-async function setupApi () {
-  const result = await chrome.runtime.sendMessage({ type: 'GET_API_INFO' })
-  if (result) {
-    Object.assign(API, result)
-    return result
+// ---------------------------------------------------------------------------------------------------------------------
+// models
+// ---------------------------------------------------------------------------------------------------------------------
+
+class Profile {
+  /**
+   * @type {string}
+   */
+  handle
+
+  /**
+   * @type {{ viewer: { following: string | undefined }, description: string | undefined, followsCount: number, followersCount: number, postsCount: number }}
+   */
+  data
+
+  /**
+   * @type {number}
+   */
+  created
+
+  /**
+   * @type {number}
+   */
+  updated
+
+  get storageKey () {
+    return `profile:${this.handle}`
+  }
+
+  get isStale () {
+    return this.data && this.updated && isOlderThan(this.updated, 7)
+  }
+
+  get isOld () {
+    return this.data && this.updated && isOlderThan(this.updated, 14)
+  }
+
+  constructor (handle) {
+    this.handle = handle
+  }
+
+  async load () {
+    const item = await Storage.get(this.storageKey)
+    this.created = item.created
+    this.updated = item.updated
+    this.data = item.data
+    return this
+  }
+
+  async save () {
+    const NOW = Date.now()
+    const item = {
+      created: this.created || NOW,
+      updated: NOW,
+      data: this.data
+    }
+    // console.log('Saving profile')
+    void Storage.set(this.storageKey, item)
+    return this
+  }
+
+  async fetch () {
+    this.data = await Api.get('app.bsky.actor.getProfile', { actor: this.handle })
+    return this
   }
 }
 
@@ -39,7 +183,7 @@ const predicates = {
 }
 
 // process each element based on its type
-function processElement (element) {
+async function processElement (element) {
   let info
   if (predicates.isListItem(element)) {
     info = createInfo('list', element)
@@ -50,7 +194,23 @@ function processElement (element) {
   if (info) {
     const actor = element.getAttribute('href').match(/profile\/([^/]+)/)[1]
     if (actor) {
-      void renderProfile(info, actor)
+      // create profile class
+      const profile = new Profile(actor)
+
+      // load from cache
+      await profile.load()
+      if (profile.data) {
+        renderInfo(info, profile)
+      }
+
+      // possibly refresh
+      if (!profile.data || profile.isStale) {
+        await profile.fetch()
+        if (profile.data) {
+          void profile.save()
+          renderInfo(info, profile)
+        }
+      }
     }
   }
 }
@@ -58,7 +218,7 @@ function processElement (element) {
 function createInfo (type, element, parent) {
   // content
   const infoContent = document.createElement('div')
-  infoContent.innerHTML = `Loading...`
+  infoContent.innerHTML = '<span style="opacity: 0.6">Loading...</span> '
   infoContent.style = `
     font-size: 12px;
     font-weight: 400;
@@ -108,60 +268,17 @@ function createInfo (type, element, parent) {
   return infoContent
 }
 
-async function renderProfile (el, actor) {
-  // variables
-  const WEEK = 1000 * 60 * 60 * 24 * 7
-  const NOW = Date.now()
-  const key = `profile:${actor}`
-
-  // helpers
-  const isOlderThan = (time, period) => {
-    return time && NOW - (time + period) > 0
-  }
-  const { format } = new Intl.NumberFormat('en-US', {
-    // notation: 'compact',
-    // compactDisplay: 'short'
-  })
-  const stripEmojis = (text) => {
-    return text.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
-  }
-  const makeIcon = (icon, title) => {
-    return `<span style="font-size:1.2em" title="${title}">${icon}</span>`
-  }
-
-  // load profile from storage
-  let { profile, created, updated } = await storage.get(key)
-  const isStale = !!profile && updated && isOlderThan(updated, WEEK)
-
-  // if no profile or it's more than a week old, fetch a new version
-  if (!profile || isStale) {
-    try {
-      // load profile
-      profile = await loadProfile(actor)
-
-      // save if it has a description
-      if (profile.description) {
-        created = created || NOW
-        updated = NOW
-        // console.log('Saving profile')
-        void storage.set(key, { created, updated, profile })
-      }
-      else {
-        // console.log('Still no description for:', actor)
-      }
-    }
-    catch (err) {
-      console.log('Could not load profile for:', actor, err)
-      el.innerHTML = 'Could not load profile'
-      el.style.color = 'red'
-      return
-    }
-  }
-
-  // if we finally have a profile
-  if (profile) {
+/**
+ * Render info
+ *
+ * @param   {HTMLElement}   el
+ * @param   {Profile}       profile
+ */
+function renderInfo (el, profile) {
+  const { data } = profile
+  if (data) {
     // variables
-    let { description, followsCount, followersCount, postsCount } = profile
+    let { description, followsCount, followersCount, postsCount } = data
 
     // if we have a description, condense it
     description = description?.trim()
@@ -174,9 +291,12 @@ async function renderProfile (el, actor) {
     }
 
     // build html
-    const ageStyle = isOlderThan(created, WEEK * 2)
+    const ageStyle = profile.isOld
       ? 'opacity: 0.6'
       : 'color: #5292d7'
+    const followingIcon = data.viewer?.following
+      ? makeIcon('👋', 'You are following this user')
+      : ''
     const postsIcon = postsCount >= 25
       ? makeIcon('✅', 'User is engaged')
       : postsCount > 1
@@ -197,25 +317,9 @@ async function renderProfile (el, actor) {
       ? htmlDescription + '\n\n' + htmlInfo
       : htmlInfo
   }
-
-  // no profile
   else {
-    console.log('Could not load profile for:', actor)
-  }
-}
-
-async function loadProfile (actor) {
-  try {
-    const res = await fetch(`${API.url}xrpc/app.bsky.actor.getProfile?actor=${actor}`, {
-      headers: {
-        authorization: `Bearer ${API.token}`
-      }
-    })
-    return res.json()
-  }
-  catch (error) {
-    await setupApi()
-    return loadProfile(actor)
+    el.innerHTML = 'Could not load profile!'
+    el.style.color = 'red'
   }
 }
 
@@ -228,7 +332,7 @@ function setupPage () {
   const observeVisibility = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
-        processElement(entry.target)
+        void processElement(entry.target)
         // stop observing once processed
         observeVisibility.unobserve(entry.target)
       }
@@ -283,7 +387,7 @@ function setupPage () {
 // ---------------------------------------------------------------------------------------------------------------------
 
 async function start () {
-  const result = await setupApi()
+  const result = await Api.init()
   if (result) {
     setupPage()
   }
