@@ -40,28 +40,31 @@ const predicates = {
 
 // process each element based on its type
 function processElement (element) {
+  let info
   if (predicates.isListItem(element)) {
-    void createInfo('list', element)
+    info = createInfo('list', element)
   }
   else if (predicates.isFeedItem(element)) {
-    void createInfo('feed', element)
+    info = createInfo('feed', element)
+  }
+  if (info) {
+    const actor = element.getAttribute('href').match(/profile\/([^/]+)/)[1]
+    if (actor) {
+      void renderProfile(info, actor)
+    }
   }
 }
 
-async function createInfo (type, element, parent) {
-  // profile
-  const actor = element.getAttribute('href').match(/profile\/([^/]+)/)[1]
-
+function createInfo (type, element, parent) {
   // content
   const infoContent = document.createElement('div')
+  infoContent.innerHTML = `Loading...`
   infoContent.style = `
     font-size: 12px;
     font-weight: 400;
     -webkit-font-smoothing: subpixel-antialiased;
     letter-spacing: 0.25px;
-    color: #5292d7;
   `
-  infoContent.innerHTML = `Loading ${actor} profile...`
 
   // elements
   if (type === 'feed') {
@@ -100,22 +103,54 @@ async function createInfo (type, element, parent) {
   // append element
   parent.appendChild(infoContent)
 
-  // render description
-  try {
-    const key = `actor-description:${actor}`
-    let description = await storage.get(key)
-    if (!description) {
+  // return
+  return infoContent
+}
+
+async function renderProfile (infoContent, actor) {
+  // variables
+  const WEEK = 1000 * 60 * 60 * 24 * 7
+  const key = `profile:${actor}`
+
+  // load profile from storage
+  let record = await storage.get(key)
+
+  // if profile is more than a week old, fetch a new version
+  if (record?.date) {
+    if (Date.now() - (record.date + WEEK) > 0) {
+      record = null
+    }
+  }
+
+  // if no profile, load it from the api
+  if (!record) {
+    try {
       const profile = await loadProfile(actor)
-      description = profile.description
-      if (description) {
-        void storage.set(key, description)
+      record = {
+        date: Date.now(),
+        profile,
       }
     }
-    infoContent.innerHTML = description || '...'
+    catch (err) {
+      console.log('Unable to load profile:', err)
+      infoContent.innerHTML = 'Could not load profile'
+      infoContent.style.color = 'red'
+      return
+    }
   }
-  catch (err) {
-    infoContent.innerHTML = '...'
-    console.log(err)
+
+  // if we finally have a profile
+  if (record) {
+    const description = record.profile.description
+    if (description) {
+      void storage.set(key, record)
+      infoContent.innerHTML = description
+      infoContent.style.color = '#5292d7'
+    }
+    else {
+      infoContent.innerHTML = 'No profile description'
+      infoContent.style.opacity = '0.6'
+    }
   }
 }
 
@@ -154,7 +189,7 @@ function setupPage () {
   })
 
   // target profile links
-  const selector = 'a[href^="/profile/"]'
+  const selector = 'a[href^="/profile/"]:not(.hasProfile)'
 
   // create a mutation observer to detect when new elements are added
   const observeDOM = new MutationObserver((mutations) => {
