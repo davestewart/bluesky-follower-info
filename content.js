@@ -280,21 +280,23 @@ function renderInfo (el, profile) {
     // variables
     let { description, followsCount, followersCount, postsCount } = data
 
+    // styling variables
+    const dim = 'opacity: 0.6'
+    const ageStyle = profile.isOld ? dim : 'color: #5292d7'
+
     // if we have a description, condense it
     description = description?.trim()
     if (description) {
       description = stripEmojis(description)
-        .split(/[\n\r]+/g) // linebreaks
+        .split(/[|\n\r]+/g) // linebreaks
         .map(line => line.replace(/[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u200F\u202F\u205F\u3000\u2028\u2029\uFE0F]/g, ' ').trim()) // remove space characters
         .filter(line => line.length > 0) // trim empty lines
-        .join(' | ') // join
+        .map(line => `<span style="${ageStyle}">${line}</span>`) // format text
+        .join(` <span style="${dim}">|</span> `) // join
     }
 
     // build html
-    const ageStyle = profile.isOld
-      ? 'opacity: 0.6'
-      : 'color: #5292d7'
-    const followingIcon = data.viewer?.following
+    const followingIcon = data.viewer?.following // unused
       ? makeIcon('👋', 'You are following this user')
       : ''
     const postsIcon = postsCount >= 25
@@ -306,10 +308,10 @@ function renderInfo (el, profile) {
       ? makeIcon('🔥', 'User is popular')
       : ''
     const info = `
-      ${postsIcon} <span style="opacity: 0.6">Posts: ${format(postsCount)} |</span> 
-      ${statusIcon} <span style="opacity: 0.6">Followers: ${format(followersCount)} | Following: ${format(followsCount)}</span>
+      ${postsIcon} <span style="${dim}">Posts: ${format(postsCount)} |</span> 
+      ${statusIcon} <span style="${dim}">Followers: ${format(followersCount)} | Following: ${format(followsCount)}</span>
       `
-    const htmlDescription = `<div style="${ageStyle}; white-space: pre-wrap">${description}</div>`
+    const htmlDescription = `<div style="white-space: pre-wrap">${description}</div>`
     const htmlInfo = `<div style="${description ? 'margin-top: 0.4em;' : ''}">${info}</div>`
 
     // set html
