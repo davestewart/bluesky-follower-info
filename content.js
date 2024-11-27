@@ -4,7 +4,7 @@
 
 const storage = {
   async get (key) {
-    const { [key]: value } = await chrome.storage.local.get({ [key]: '' })
+    const { [key]: value } = await chrome.storage.local.get({ [key]: {} })
     return value
   },
   async set (key, value) {
@@ -63,6 +63,7 @@ function createInfo (type, element, parent) {
     font-size: 12px;
     font-weight: 400;
     -webkit-font-smoothing: subpixel-antialiased;
+    white-space: normal;
     letter-spacing: 0.25px;
   `
 
@@ -107,50 +108,82 @@ function createInfo (type, element, parent) {
   return infoContent
 }
 
-async function renderProfile (infoContent, actor) {
+async function renderProfile (el, actor) {
   // variables
   const WEEK = 1000 * 60 * 60 * 24 * 7
+  const NOW = Date.now()
   const key = `profile:${actor}`
 
-  // load profile from storage
-  let record = await storage.get(key)
-
-  // if profile is more than a week old, fetch a new version
-  if (record?.date) {
-    if (Date.now() - (record.date + WEEK) > 0) {
-      record = null
-    }
+  // helpers
+  const { format } = new Intl.NumberFormat('en-US', {
+    // notation: 'compact',
+    // compactDisplay: 'short'
+  })
+  const isOlderThan = (time, period) => {
+    return time && NOW - (time + period) > 0
   }
 
-  // if no profile, load it from the api
-  if (!record) {
+  // load profile from storage
+  let { profile, created, updated } = await storage.get(key)
+  const isStale = !!profile && updated && isOlderThan(updated, WEEK)
+
+  // if no profile or it's more than a week old, fetch a new version
+  if (!profile || isStale) {
     try {
-      const profile = await loadProfile(actor)
-      record = {
-        date: Date.now(),
-        profile,
+      // load profile
+      profile = await loadProfile(actor)
+
+      // save if it has a description
+      if (profile.description) {
+        created = created || NOW
+        updated = NOW
+        // console.log('Saving profile')
+        void storage.set(key, { created, updated, profile })
+      }
+      else {
+        // console.log('Still no description for:', actor)
       }
     }
     catch (err) {
-      console.log('Unable to load profile:', err)
-      infoContent.innerHTML = 'Could not load profile'
-      infoContent.style.color = 'red'
+      console.log('Could not load profile for:', actor, err)
+      el.innerHTML = 'Could not load profile'
+      el.style.color = 'red'
       return
     }
   }
 
   // if we finally have a profile
-  if (record) {
-    const description = record.profile.description
+  if (profile) {
+    // variables
+    let { description, followsCount, followersCount, postsCount } = profile
+    let info = `Posts: ${format(postsCount)}, Followers: ${format(followersCount)}, Follows: ${format(followsCount)}`
+
+    // if we have a description, condense it and save the profile
+    description = description?.trim()
     if (description) {
-      void storage.set(key, record)
-      infoContent.innerHTML = description
-      infoContent.style.color = '#5292d7'
+      description = description
+        .split(/[\n\r]+/g)
+        .filter(line => line.trim().length > 0)
+        .map(line => line.trim())
+        .join(' | ')
     }
-    else {
-      infoContent.innerHTML = 'No profile description'
-      infoContent.style.opacity = '0.6'
-    }
+
+    // prepare html
+    const style = isOlderThan(created, WEEK)
+      ? 'opacity: 0.6'
+      : 'color: #5292d7'
+    const htmlDescription = `<div style="${style}; white-space: pre-wrap">${description}</div>`
+    const htmlInfo = `<div style="opacity: 0.6; ${description ? 'margin-top: 0.4em;' : ''}">${info}</div>`
+
+    // set html
+    el.innerHTML = description
+      ? htmlDescription + '\n\n' + htmlInfo
+      : htmlInfo
+  }
+
+  // no profile
+  else {
+    console.log('Could not load profile for:', actor)
   }
 }
 
