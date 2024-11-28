@@ -74,6 +74,7 @@ const Api = {
     // variables
     const isGet = method.toLowerCase() === 'get'
     const { url, token } = this.config
+    let fullPath = path
     const options = {
       headers: {
         authorization: `Bearer ${token}`
@@ -88,11 +89,11 @@ const Api = {
     // for get requests with data, append as query parameters
     else if (data && isGet) {
       const queryParams = new URLSearchParams(data).toString()
-      path = `${path}${path.includes('?') ? '&' : '?'}${queryParams}`
+      fullPath = `${path}${path.includes('?') ? '&' : '?'}${queryParams}`
     }
 
     // make the request
-    return fetch(`${url}xrpc/${path}`, options)
+    return fetch(`${url}xrpc/${fullPath}`, options)
       .then(async (res) => {
         if (!res.ok) {
           // if the token is invalid, get the latest
