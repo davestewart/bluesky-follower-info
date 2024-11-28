@@ -45,6 +45,9 @@ const Storage = {
   },
   async set (key, value) {
     await chrome.storage.local.set({ [key]: value })
+  },
+  async remove (key) {
+    await chrome.storage.local.remove(key)
   }
 }
 
@@ -76,8 +79,10 @@ const Api = {
     const { url, token } = this.config
     let fullPath = path
     const options = {
+      method,
       headers: {
-        authorization: `Bearer ${token}`
+        'authorization': `Bearer ${token}`,
+        'content-type': 'application/json',
       }
     }
 
@@ -110,7 +115,9 @@ const Api = {
         }
 
         // return data
-        return res.json()
+        return res.headers.get('content-type')?.includes('application/json')
+          ? res.json()
+          : res.text()
       })
       .catch(error => {
         warn('Fetch error:', error)
@@ -182,6 +189,11 @@ class Profile {
   async fetch () {
     this.data = await Api.get('app.bsky.actor.getProfile', { actor: this.handle })
     return this
+  }
+
+  async mute () {
+    await Api.post('app.bsky.graph.muteActor', { actor: this.handle })
+    void Storage.remove(this.storageKey, this.handle)
   }
 }
 
