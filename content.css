@@ -42,3 +42,7 @@
 .bfi-error {
   color: red;
 }
+
+div[data-testid][aria-label*="others followed you"] {
+  background-color: #0077FF17;
+}

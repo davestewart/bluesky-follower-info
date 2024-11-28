@@ -15,6 +15,7 @@ The extension displays:
   - ✅ Engaged (more than 25 posts)
   - 🔥 Popular (more followers than following)
 - Newer followers (< 2 weeks) shown in blue, older ones in grey
+- A blue background for notification summaries (so you don't miss them)
 
 Only on-screen notifications are fetched, then cached (and refreshed if > 1 week old)
 
