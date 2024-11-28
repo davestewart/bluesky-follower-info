@@ -19,12 +19,14 @@ function isOlderThan (time, days = 1) {
 }
 
 function stripEmojis (text) {
-  const rx = /[\u{1F000}-\u{1F9FF}]|[\u2600-\u27FF]|[\u2300-\u23FF}]|[\u{2B00}-\u{2BFF}]|[\u2900-\u297F]|[\u2700-\u27BF]|[\uE000-\uF8FF]|[\u{1F900}-\u{1F9FF}]|[\u2E00-\u2E7F]|\uFE0F/gu
-  return text.replace(rx, '')
+  const emojis = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu
+  const emojisAndFlags = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F170}-\u{1F18D}\u{1F191}-\u{1F19A}\u{1F1E6}-\u{1F1FF}\u{1F000}-\u{1F0FF}\u{1F100}-\u{1F1FF}\u{1F201}-\u{1F2FF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}][\u{FE00}-\u{FE0F}\u{1F3FB}-\u{1F3FF}]?/gu
+  // const rx = /[\u{1F000}-\u{1F9FF}]|[\u2600-\u27FF]|[\u2300-\u23FF}]|[\u{2B00}-\u{2BFF}]|[\u2900-\u297F]|[\u2700-\u27BF]|[\uE000-\uF8FF]|[\u{1F900}-\u{1F9FF}]|[\u2E00-\u2E7F]|\uFE0F/gu
+  return text.replace(emojisAndFlags, '')
 }
 
 function makeIcon (icon, title) {
-  return `<span style="font-size:1.2em" title="${title}">${icon}</span>`
+  return `<span class="bfi-icon" title="${title}">${icon}</span>`
 }
 
 const { format } = new Intl.NumberFormat('en-US', {
@@ -231,14 +233,8 @@ async function processElement (element) {
 function createInfo (type, element, parent) {
   // content
   const infoContent = document.createElement('div')
-  infoContent.innerHTML = '<span style="opacity: 0.6">Loading...</span> '
-  infoContent.style = `
-    font-size: 12px;
-    font-weight: 400;
-    -webkit-font-smoothing: subpixel-antialiased;
-    white-space: normal;
-    letter-spacing: 0.25px;
-  `
+  infoContent.innerHTML = '<span class="bfi-dim">Loading...</span> '
+  infoContent.className = 'bfi-content'
 
   // elements
   if (type === 'feed') {
@@ -260,7 +256,6 @@ function createInfo (type, element, parent) {
     avatar.style.paddingTop = '3px'
     wrapper.style.paddingLeft = '4px'
     textContent.style.paddingBottom = '3px'
-    infoContent.style.fontSize = '12px'
 
     // reset original wrapper
     element.style.height = ''
@@ -295,17 +290,18 @@ function renderInfo (el, profile) {
 
     // styling variables
     const dim = 'opacity: 0.6'
-    const ageStyle = profile.isOld ? dim : 'color: #5292d7'
+    const ageClass = profile.isOld ? 'bfi-dim' : 'bfi-text'
 
     // if we have a description, condense it
     description = description?.trim()
     if (description) {
-      description = stripEmojis(description)
-        .split(/[|\n\r]+/g) // linebreaks
-        .map(line => line.replace(/[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u200F\u202F\u205F\u3000\u2028\u2029\uFE0F]/g, ' ').trim()) // remove space characters
+      description = description
+        .replaceAll(/(https?:\/\/)(www\.)?(\S+)/g, (_, a, b, c) => `<span class="bfi-url">⚡️ ${c.replace(/\/$/, '')}</span>`) // domain prefixes
+        .split(/[|❯•∙⋅\n\r]+/g) // break on pipes, bullets, linebreaks
+        .map(line => line.replace(/^- /g, ' ').trim()) // remove dash bullets
         .filter(line => line.length > 0) // trim empty lines
-        .map(line => `<span style="${ageStyle}">${line}</span>`) // format text
-        .join(` <span style="${dim}">|</span> `) // join
+        .map(line => `<span class="${ageClass}">${line}</span>`) // format text
+        .join(` <span class="bfi-sep">|</span> `) // join
     }
 
     // build html
@@ -321,11 +317,11 @@ function renderInfo (el, profile) {
       ? makeIcon('🔥', 'User is popular')
       : ''
     const info = `
-      ${postsIcon} <span style="${dim}">Posts: ${format(postsCount)} |</span> 
-      ${statusIcon} <span style="${dim}">Followers: ${format(followersCount)} | Following: ${format(followsCount)}</span>
+      ${postsIcon} <span class="bfi-dim">Posts: ${format(postsCount)} |</span> 
+      ${statusIcon} <span class="bfi-dim">Followers: ${format(followersCount)} | Following: ${format(followsCount)}</span>
       `
-    const htmlDescription = `<div style="white-space: pre-wrap">${description}</div>`
-    const htmlInfo = `<div style="${description ? 'margin-top: 0.4em;' : ''}">${info}</div>`
+    const htmlDescription = `<div class="bfi-desc">${description}</div>`
+    const htmlInfo = `<div class="bfi-info">${info}</div>`
 
     // set html
     el.innerHTML = description
@@ -334,7 +330,7 @@ function renderInfo (el, profile) {
   }
   else {
     el.innerHTML = 'Could not load profile!'
-    el.style.color = 'red'
+    el.classList.add('bfi-error')
   }
 }
 

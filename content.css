@@ -1,0 +1,44 @@
+.bfi-content {
+  font-size: 12px;
+  font-weight: 400;
+  -webkit-font-smoothing: subpixel-antialiased;
+  white-space: normal;
+  letter-spacing: 0.25px;
+  margin-bottom: 10px;
+}
+
+.bfi-desc {
+  white-space: pre-wrap;
+}
+
+
+.bfi-info {
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.bfi-desc + .bfi-info {
+  margin-top: 8px;
+}
+
+.bfi-text {
+  color: #5292d7;
+}
+
+.bfi-url {
+
+}
+
+.bfi-icon {
+  font-size:1.4em;
+  vertical-align: middle;
+}
+
+.bfu-sep,
+.bfi-dim {
+  opacity: 0.6;
+}
+
+.bfi-error {
+  color: red;
+}
