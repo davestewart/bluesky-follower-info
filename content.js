@@ -2,6 +2,16 @@
 // utils
 // ---------------------------------------------------------------------------------------------------------------------
 
+const NAME = '[bluesky-follower-info]'
+
+function log (...args) {
+  console.log(NAME, ...args)
+}
+
+function warn (...args) {
+  console.warn(NAME, ...args)
+}
+
 function isOlderThan (time, days = 1) {
   const DAY = 1000 * 60 * 60 * 24
   const period = DAY * days
@@ -84,19 +94,23 @@ const Api = {
       .then(async (res) => {
         if (!res.ok) {
           // if the token is invalid, get the latest
-          if (res.status === 401) {
-            await this.init()
-            return this.call(method, path, data)
+          if (res.status >= 400) {
+            const err = await res.json()
+            if (err.error === 'ExpiredToken') {
+              log('Refreshing token...')
+              await this.init()
+              return this.call(method, path, data)
+            }
+            log(err)
           }
           return null
         }
 
-        // return
-        const data = await res.json()
-        return data
+        // return data
+        return res.json()
       })
       .catch(error => {
-        console.error('Fetch error:', error)
+        warn('Fetch error:', error)
         throw error
       })
   }
@@ -158,7 +172,6 @@ class Profile {
       updated: NOW,
       data: this.data
     }
-    // console.log('Saving profile')
     void Storage.set(this.storageKey, item)
     return this
   }
