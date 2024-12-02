@@ -11,6 +11,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false
   }
 
+  if (message.type === 'CLEAR_CACHE') {
+    chrome.storage.local.get(null).then(items => {
+      const keys = []
+      for (const key of Object.keys(items)) {
+        if (key.startsWith('profile:')) {
+          keys.push(key)
+        }
+      }
+      if (keys.length > 0) {
+        console.log(`Removing ${keys.length} profiles`)
+        void chrome.storage.local.remove(keys)
+      }
+    })
+    return false
+  }
+
   if (message.type === 'GET_API') {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },

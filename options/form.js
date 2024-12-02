@@ -54,3 +54,7 @@ document.body.addEventListener('change', () => {
   const options = getFormValues()
   void chrome.runtime.sendMessage({ type: 'SET_OPTIONS', options })
 })
+
+document.querySelector('#clear-cache').addEventListener('click', () => {
+  void chrome.runtime.sendMessage({ type: 'CLEAR_CACHE' })
+})
