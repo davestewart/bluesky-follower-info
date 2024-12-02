@@ -19,10 +19,10 @@ function isOlderThan (time, days = 1) {
 }
 
 function stripEmojis (text) {
-  const emojis = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu
-  const emojisAndFlags = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F170}-\u{1F18D}\u{1F191}-\u{1F19A}\u{1F1E6}-\u{1F1FF}\u{1F000}-\u{1F0FF}\u{1F100}-\u{1F1FF}\u{1F201}-\u{1F2FF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}][\u{FE00}-\u{FE0F}\u{1F3FB}-\u{1F3FF}]?/gu
-  // const rx = /[\u{1F000}-\u{1F9FF}]|[\u2600-\u27FF]|[\u2300-\u23FF}]|[\u{2B00}-\u{2BFF}]|[\u2900-\u297F]|[\u2700-\u27BF]|[\uE000-\uF8FF]|[\u{1F900}-\u{1F9FF}]|[\u2E00-\u2E7F]|\uFE0F/gu
-  return text.replace(emojisAndFlags, '')
+  const emojisAndFlags = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B00}-\u{2BFF}\u{1F1E6}-\u{1F1FF}\u{1F170}-\u{1F18D}\u{1F191}-\u{1F19A}\u{1F1E6}-\u{1F1FF}\u{1F000}-\u{1F0FF}\u{1F100}-\u{1F1FF}\u{1F201}-\u{1F2FF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}][\u{FE00}-\u{FE0F}\u{1F3FB}-\u{1F3FF}]?/gu
+  return text
+    .replace(emojisAndFlags, '')
+    .replace(/\u200D/g, '')
 }
 
 function makeIcon (icon, title) {
@@ -87,7 +87,7 @@ const Api = {
   },
 
   async init () {
-    const result = await chrome.runtime.sendMessage({ type: 'GET_API_INFO' })
+    const result = await chrome.runtime.sendMessage({ type: 'GET_API' })
     if (result) {
       Object.assign(this.config, result)
       return result
@@ -185,11 +185,11 @@ class Profile {
   }
 
   get isStale () {
-    return this.data && this.updated && isOlderThan(this.updated, 7)
+    return this.data && this.updated && isOlderThan(this.updated, options.thresholds.updated)
   }
 
   get isOld () {
-    return this.data && this.updated && isOlderThan(this.updated, 14)
+    return this.data && this.created && isOlderThan(this.updated, options.thresholds.created)
   }
 
   constructor (handle) {
@@ -341,9 +341,25 @@ function getTargetModel (link) {
     const container = summary.closest('[data-testid^="feedItem-by"]')
     if (container) {
       // note: these operations ensure pass 2 works correctly
-      summary.nextElementSibling?.classList.add('bfi-list')
-      container.classList.add('bfi-container')
       delete container.dataset.testid
+      summary.nextElementSibling?.classList.add('bfi-list')
+
+      // only process lists if included in options
+      const description = summary.nextElementSibling.nextElementSibling.getAttribute('aria-label')
+      const isFollowed = description.includes(labels.listFollowed)
+      const isReposted = description.includes(labels.listReposted)
+      const isLiked = description.includes(labels.listLiked)
+      if ((isFollowed && !options.process.listFollowed) || (isReposted && !options.process.listReposted) || (isLiked && !options.process.listLiked)) {
+        return
+      }
+
+      // only add container once we know we are processing
+      container.classList.add('bfi-container')
+
+      // list highlight option
+      if (!options.process.listHighlight) {
+        container.classList.add('no-highlight')
+      }
     }
     return
   }
@@ -353,6 +369,9 @@ function getTargetModel (link) {
   if (list) {
     // get container
     const container = link.closest('.bfi-container')
+    if (!container) {
+      return
+    }
 
     // if we can't yet see the hide list button, the list is closed
     const hideList = container.querySelector(`[aria-label="${labels.listHide}"]`)
@@ -382,7 +401,7 @@ function getTargetModel (link) {
 
   // feed item link
   element = link.closest(`[data-testid="feedItem-by-${handle}"]`)
-  if (element) {
+  if (element && options.process.feedFollowed) {
     const label = element.getAttribute('aria-label') // only likes and follows get a label; replies don't
     if (label) {
       if (label?.includes(labels.feedFollowed)) {
@@ -537,36 +556,41 @@ function renderContent (model, profile) {
       ? 'bfi-dim'
       : 'bfi-text'
 
-    // if we have a description, condense it
+    // if we have a description...
     description = description?.trim()
     if (description) {
+      // options
+      const emojis = options.profile.emojis
+
+      // condense it
       description = description
-        .replaceAll(/(https?:\/\/)(www\.)?(\S+)/g, (_, a, b, c) => `<span class="bfi-url">⚡️ ${c.replace(/\/$/, '')}</span>`) // domain prefixes
+        .replaceAll(/(https?:\/\/)(www\.)?(\S+)/g, (_, a, b, c) => `<span class="bfi-url">${emojis ? '⚡️ ' : ''}${c.replace(/\/$/, '')}</span>`) // domain prefixes
         .split(/[|❯•∙⋅\n\r]+/g) // break on pipes, bullets, linebreaks
         .map(line => line.replace(/^- /g, ' ').trim()) // remove dash bullets
+        .map(line => options.profile.emojis ? line : stripEmojis(line).trim()) // remove emojis
         .filter(line => line.length > 0) // trim empty lines
         .map(line => `<span class="${ageClass}">${line}</span>`) // format text
         .join(` <span class="bfi-sep">|</span> `) // join
     }
 
     // build html
-    const followingIcon = following // unused
-      ? makeIcon('👍', 'You are following this user')
-      : ''
-    const postsIcon = posts >= 25
-      ? makeIcon('✅', 'User is engaged')
-      : posts > 1
-        ? makeIcon('📝️', 'User has posted')
+    const postsIcon = posts >= options.thresholds.engaged
+      ? makeIcon(options.icons.engaged, 'User is engaged')
+      : posts > options.thresholds.posted
+        ? makeIcon(options.icons.posted, 'User has posted')
         : ''
     const statusIcon = followers > follows
-      ? makeIcon('🔥', 'User is popular')
+      ? makeIcon(options.icons.popular, 'User is popular')
+      : ''
+    const followingIcon = following // unused
+      ? makeIcon(options.icons.following, 'You are following this user')
       : ''
     const info = `
       ${postsIcon} <span class="bfi-dim">Posts: ${format(posts)} |</span> 
       ${statusIcon} <span class="bfi-dim">Followers: ${format(followers)} | </span>
       ${followingIcon} <span class="bfi-dim">Following: ${format(follows)}</span>
       `
-    const htmlDescription = `<div class="bfi-desc">${description}</div>`
+    const htmlDescription = `<div class="bfi-desc ${options.profile.compact ? 'is-compact' : ''}">${description}</div>`
     const htmlInfo = `<div class="bfi-info">${info}</div>`
 
     // set html
@@ -639,6 +663,21 @@ function setupPage () {
   }
 }
 
+
+// ---------------------------------------------------------------------------------------------------------------------
+// options
+// ---------------------------------------------------------------------------------------------------------------------
+
+const options = {}
+
+async function setupOptions () {
+  const result = await chrome.runtime.sendMessage({ type: 'GET_OPTIONS' })
+  if (result) {
+    Object.assign(options, result)
+    log(options)
+  }
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // start
 // ---------------------------------------------------------------------------------------------------------------------
@@ -647,6 +686,7 @@ async function start () {
   const result = await Api.init()
   if (result) {
     await Storage.init()
+    await setupOptions()
     setupPage()
   }
   else {

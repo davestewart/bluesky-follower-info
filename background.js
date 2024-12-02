@@ -1,5 +1,17 @@
+import { loadOptions, saveOptions } from './options/options.js'
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'GET_API_INFO') {
+  if (message.type === 'GET_OPTIONS') {
+    loadOptions().then(sendResponse)
+    return true
+  }
+
+  if (message.type === 'SET_OPTIONS') {
+    void saveOptions(message.options)
+    return false
+  }
+
+  if (message.type === 'GET_API') {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
       world: 'MAIN',

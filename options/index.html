@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Options Page</title>
+  <style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #f5f5f5;
+  }
+
+  .section {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  h2 {
+    margin-top: 0;
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  p {
+    margin: 1.5rem 0 .75rem;
+    font-size: 11px;
+    color: #777;
+  }
+
+  .checkbox-label {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .input-row label {
+    flex: 1;
+    font-size: 14px;
+    color: #4a5568;
+  }
+
+  input[type="text"] {
+    width: 30px;
+    padding: 6px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  input[type="number"] {
+    width: 60px;
+    padding: 6px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+  }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Process Section -->
+  <div class="section">
+    <h2>Processes</h2>
+    <p>Feed</p>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-feedFollowed">
+      <span>Show followed</span>
+    </label>
+    <p>Lists</p>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-listFollowed">
+      <span>Show followed</span>
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-listReposted">
+      <span>Show reposted</span>
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-listLiked">
+      <span>Show liked</span>
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-listHighlight">
+      <span>Highlight list</span>
+    </label>
+  </div>
+
+  <!-- Profile Section -->
+  <div class="section">
+    <h2>Profile</h2>
+    <label class="checkbox-label">
+      <input type="checkbox" id="profile-emojis">
+      <span>Show emojis</span>
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="profile-compact">
+      <span>Compact view</span>
+    </label>
+  </div>
+
+  <!-- Icons Section -->
+  <div class="section">
+    <h2>Icons</h2>
+    <div class="input-row">
+      <label>Posted</label>
+      <input type="text" id="icons-posted" maxlength="4">
+    </div>
+    <div class="input-row">
+      <label>Engaged</label>
+      <input type="text" id="icons-engaged" maxlength="4">
+    </div>
+    <div class="input-row">
+      <label>Popular</label>
+      <input type="text" id="icons-popular" maxlength="4">
+    </div>
+    <div class="input-row">
+      <label>Following</label>
+      <input type="text" id="icons-following" maxlength="4">
+    </div>
+  </div>
+
+  <!-- Thresholds Section -->
+  <div class="section">
+    <h2>Thresholds</h2>
+    <p>Posts required to show an icon</p>
+    <div class="input-row">
+      <label>Posted (posts):</label>
+      <input type="number" min="1" id="thresholds-posted">
+    </div>
+    <div class="input-row">
+      <label>Engaged (posts):</label>
+      <input type="number" min="1" id="thresholds-engaged">
+    </div>
+
+    <p>Days until users are refreshed or no-longer highlighted</p>
+    <div class="input-row">
+      <label>Stale (days):</label>
+      <input type="number" min="1" id="thresholds-updated">
+    </div>
+    <div class="input-row">
+      <label>Old (days):</label>
+      <input type="number" min="1" id="thresholds-created">
+    </div>
+  </div>
+
+  <!--
+  <button id="save-button" class="save-button">Save Settings</button>
+  -->
+</div>
+<script type="module" src="form.js"></script>
+</body>
+</html>

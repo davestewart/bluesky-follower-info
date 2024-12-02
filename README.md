@@ -6,6 +6,8 @@
 
 ## Features
 
+### Extension
+
 The extension displays:
 
 - Profile description (tidied)
@@ -14,11 +16,20 @@ The extension displays:
   - 📝 Posted
   - ✅ Engaged (more than 25 posts)
   - 🔥 Popular (more followers than following)
+  - 👍 Following
 - Newer followers (< 2 weeks) shown in blue, older ones in grey
 - A blue background for notification summaries (so you don't miss them)
 
 Only on-screen notifications are fetched, then cached (and refreshed if > 1 week old)
 
+### Options
+
+The options page lets you configure:
+
+- Process (lists, feed, follows, reposts, likes)
+- Profile (show emojis, compact view)
+- Icons (posted, engaged, popular, following)
+- Thresholds (posted, engaged, stale, old)
 
 ## Screenshots
 
