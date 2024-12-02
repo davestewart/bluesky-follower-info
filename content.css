@@ -1,3 +1,34 @@
+.bfi-container  > div {
+  background-color: #0077FF17;
+}
+
+.bfi-list {
+  height: unset !important;
+  transition: height .7s ease !important;
+}
+
+.bfi-target {
+  overflow: visible !important;
+  -webkit-box-orient: unset;
+}
+
+/*
+.bfi-following .bfi-avatar {
+  position: relative;
+  overflow: visible;
+  &:after {
+    position: absolute;
+    line-height: 1em;
+    bottom: -4px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    content: '⭐️';
+  }
+}
+*/
+
 .bfi-content {
   font-size: 12px;
   font-weight: 400;
@@ -11,8 +42,8 @@
   white-space: pre-wrap;
 }
 
-
 .bfi-info {
+  margin-top: 5px;
   vertical-align: middle;
   line-height: 1;
 }
@@ -25,13 +56,10 @@
   color: #5292d7;
 }
 
-.bfi-url {
-
-}
-
 .bfi-icon {
+  line-height: 1em;
   font-size:1.4em;
-  vertical-align: middle;
+  vertical-align: -5%;
 }
 
 .bfu-sep,
@@ -43,6 +71,30 @@
   color: red;
 }
 
-div[data-testid][aria-label*="others followed you"] {
-  background-color: #0077FF17;
+body.debug {
+  .bfi-container,
+  .bfi-list,
+  .bfi-element,
+  .bfi-avatar,
+  .bfi-target,
+  .bfi-content {
+    outline-width: 2px;
+    outline-style: dashed;
+    outline-offset: -1px;
+  }
+
+  .bfi-avatar,
+  .bfi-target,
+  .bfi-content {
+    outline-color: #a8bb11;
+  }
+
+  .bfi-element {
+    outline-color: #ff5079;
+  }
+
+  .bfi-container,
+  .bfi-list {
+    outline-color: #2d92fa;
+  }
 }

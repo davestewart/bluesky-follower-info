@@ -39,13 +39,42 @@ const { format } = new Intl.NumberFormat('en-US', {
 // ---------------------------------------------------------------------------------------------------------------------
 
 const Storage = {
+  // update version if options format changes (use manifest version)
+  version: '1.3.0',
+
+  async init () {
+    // clear storage if version has changed
+    const version = await Storage.get('version')
+    if (version !== this.version) {
+      await chrome.storage.local.clear()
+      await this.set('version', this.version)
+      return
+    }
+
+    // remove follows older than a month
+    const keys = []
+    const items = await chrome.storage.local.get(null)
+    for (const key of Object.keys(items)) {
+      const item = items[key]
+      if (item.created && isOlderThan(item.created, 30)) {
+        keys.push(key)
+      }
+    }
+    if (keys.length > 0) {
+      log(`Removing ${keys.length} old profiles`)
+      await this.remove(keys)
+    }
+  },
+
   async get (key) {
     const { [key]: value } = await chrome.storage.local.get({ [key]: {} })
     return value
   },
+
   async set (key, value) {
     await chrome.storage.local.set({ [key]: value })
   },
+
   async remove (key) {
     await chrome.storage.local.remove(key)
   }
@@ -137,7 +166,7 @@ class Profile {
   handle
 
   /**
-   * @type {{ viewer: { following: string | undefined }, description: string | undefined, followsCount: number, followersCount: number, postsCount: number }}
+   * @type {description: string | undefined, follows: number, followers: number, posts: number, following: boolean }
    */
   data
 
@@ -187,7 +216,15 @@ class Profile {
   }
 
   async fetch () {
-    this.data = await Api.get('app.bsky.actor.getProfile', { actor: this.handle })
+    const data = await Api.get('app.bsky.actor.getProfile', { actor: this.handle })
+    const { description, followsCount: follows, followersCount: followers, postsCount: posts, viewer } = data
+    this.data = {
+      description,
+      follows,
+      followers,
+      posts,
+      following: !!viewer?.following
+    }
     return this
   }
 
@@ -198,70 +235,222 @@ class Profile {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// elements
+// sniff elements
 // ---------------------------------------------------------------------------------------------------------------------
 
-const predicates = {
-  inList: e => !!e.parentElement?.parentElement?.firstElementChild?.firstElementChild?.matches('[aria-label="Hide user list"]'),
-  inSummary: e => !!e.closest('[role="presentation"]') || e.parentElement?.innerText.includes(' others followed you'),
-  hasAvatar: e => !!e.querySelector('[data-testid="userAvatarImage"]'),
-  inFollowedYou: e => e.closest('[aria-label*="followed you"]'),
-  isListItem: e => predicates.inList(e) && predicates.hasAvatar(e),
-  isFeedItem: e => predicates.inFollowedYou(e) && !predicates.inList(e) && !predicates.inSummary(e) && !predicates.hasAvatar(e)
+// need to sniff by label content
+const i18n = {
+  en: {
+    listHide: 'Hide user list',
+    listFollowed: 'followed you',
+    listLiked: 'liked your post',
+    listReposted: 'reposted your post',
+    feedFollowed: 'followed you',
+    avatar: ' avatar',
+  },
+  fr: {
+    listHide: 'Cacher la liste des comptes',
+    listFollowed: 'vous ont suivi',
+    listLiked: 'aimé votre post',
+    listReposted: 'republié votre post',
+    feedFollowed: 'suivi votre compte',
+    avatar: 'avatar de',
+  },
+  es: {
+    listHide: 'Ocultar lista de usuarios',
+    listFollowed: 'más te siguieron',
+    listLiked: 'más dieron "me gusta" a tu publicación',
+    listReposted: 'más republicaron tu publicación',
+    feedFollowed: 'te siguió',
+    avatar: 'avatar de',
+  }
 }
 
-// process each element based on its type
-async function processElement (element) {
-  let info
-  if (predicates.isListItem(element)) {
-    info = createInfo('list', element)
-  }
-  else if (predicates.isFeedItem(element)) {
-    info = createInfo('feed', element)
-  }
-  if (info) {
-    const actor = element.getAttribute('href').match(/profile\/([^/]+)/)[1]
-    if (actor) {
-      // create profile class
-      const profile = new Profile(actor)
+/**
+ * @typedef {'starter'|'list'|'feed'} TargetType
+ */
 
-      // load from cache
-      await profile.load()
-      if (profile.data) {
-        renderInfo(info, profile)
+/**
+ * Describes the target elements and relations
+ *
+ * @typedef TargetModel
+ * @property {string}       handle        The user's handle
+ * @property {TargetType}   type          The type of element
+ * @property {HTMLElement}  element       The containing element
+ * @property {HTMLElement}  avatar        The avatar item within the element
+ * @property {HTMLElement}  target        The target element to attach any content to
+ * @property {HTMLElement}  [content]     The attached content element
+ * @property {HTMLElement}  [list]        Any containing list element
+ */
+
+/**
+ * Returns element model
+ *
+ * @param   {HTMLLinkElement} link
+ * @return  {TargetModel|undefined}
+ */
+function getTargetModel (link) {
+  // supported languages
+  const lang = document.querySelector('html').lang
+  const labels = i18n[lang]
+  if (!labels) {
+    return
+  }
+
+  // helpers
+  const getAvatar = el => el.querySelector('[data-testid="userAvatarImage"],[data-testid="userAvatarFallback"]')
+    ?.parentElement
+    ?.parentElement
+    ?.parentElement
+    ?.parentElement
+
+  // variables
+  const href = link.getAttribute('href')
+  const handle = href.match(/profile\/([^/]+)/)[1]
+  let list, element
+
+  // -------------------------------------------------------------------------------------------------------------------
+  // starter pack
+  // -------------------------------------------------------------------------------------------------------------------
+
+  if (location.pathname.startsWith('/starter-pack/')) {
+    const button = link.querySelector('button')
+    if (button) {
+      const avatar = getAvatar(link)
+      if (avatar) {
+        return {
+          handle,
+          type: 'starter',
+          element: link,
+          target: link.querySelector('[data-word-wrap="1"]'),
+          avatar,
+        }
       }
+    }
+  }
 
-      // possibly refresh
-      if (!profile.data || profile.isStale) {
-        await profile.fetch()
-        if (profile.data) {
-          void profile.save()
-          renderInfo(info, profile)
+  // -------------------------------------------------------------------------------------------------------------------
+  // notifications
+  // -------------------------------------------------------------------------------------------------------------------
+
+  // multi-avatar containers indicate list elements
+  const summary = link.closest('[role="presentation"]')
+
+  // pass 1: identify list and container, then skip summary avatars
+  if (summary) {
+    const container = summary.closest('[data-testid^="feedItem-by"]')
+    if (container) {
+      // note: these operations ensure pass 2 works correctly
+      summary.nextElementSibling?.classList.add('bfi-list')
+      container.classList.add('bfi-container')
+      delete container.dataset.testid
+    }
+    return
+  }
+
+  // pass 2: identify notifications elements
+  list = link.closest(`.bfi-list`)
+  if (list) {
+    // get container
+    const container = link.closest('.bfi-container')
+
+    // if we can't yet see the hide list button, the list is closed
+    const hideList = container.querySelector(`[aria-label="${labels.listHide}"]`)
+    if (!hideList) {
+      return
+    }
+
+    // notification list
+    return {
+      handle,
+      type: 'list',
+      element: link,
+      target: link,
+      avatar: getAvatar(link),
+      list,
+    }
+  }
+
+  // -------------------------------------------------------------------------------------------------------------------
+  // feed
+  // -------------------------------------------------------------------------------------------------------------------
+
+  // feed item avatar (ignore!)
+  if (link.getAttribute('aria-label')?.includes(labels.avatar)) {
+    return
+  }
+
+  // feed item link
+  element = link.closest(`[data-testid="feedItem-by-${handle}"]`)
+  if (element) {
+    const label = element.getAttribute('aria-label') // only likes and follows get a label; replies don't
+    if (label) {
+      if (label?.includes(labels.feedFollowed)) {
+        return {
+          handle,
+          type: `feed`,
+          element,
+          target: link.parentElement,
+          avatar: getAvatar(element)
         }
       }
     }
   }
 }
 
-function createInfo (type, element, parent) {
+// process each element based on its type
+async function processElement (link) {
+  // test element
+  const model = getTargetModel(link)
+
+  // don't reprocess
+  link.setAttribute('data-bfi', '1')
+
+  // add content
+  if (model) {
+    if(buildElements(model)) {
+      void renderData(model)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// create elements
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Build target elements
+ *
+ * @param {TargetModel} model
+ */
+function buildElements (model) {
+  // variables
+  const { type, target, element, avatar, list } = model
+  let parent
+
+  // add debug classes
+  element.classList.add('bfi-element')
+  target.classList.add('bfi-target')
+  avatar?.classList.add('bfi-avatar')
+
   // content
-  const infoContent = document.createElement('div')
-  infoContent.innerHTML = '<span class="bfi-dim">Loading...</span> '
-  infoContent.className = 'bfi-content'
+  const content = document.createElement('div')
+  content.innerHTML = '<span class="bfi-dim">Loading...</span> '
+  content.className = 'bfi-content'
 
   // elements
   if (type === 'feed') {
-    infoContent.style.marginTop = '5px'
-    parent = element.parentElement
+    content.style.marginTop = '5px'
+    parent = target
   }
 
   else if (type === 'list') {
     // elements
     const wrapper = document.createElement('div')
-    const [avatar, textContent] = element.childNodes
+    const [avatar, textContent] = target.childNodes
 
     // re-layout components
-    element.insertBefore(wrapper, textContent)
+    target.insertBefore(wrapper, textContent)
     wrapper.appendChild(textContent)
     parent = wrapper
 
@@ -271,39 +460,82 @@ function createInfo (type, element, parent) {
     textContent.style.paddingBottom = '3px'
 
     // reset original wrapper
-    element.style.height = ''
-    element.style.alignItems = 'flex-start'
-    element.style.marginBottom = '5px'
+    target.style.height = ''
+    target.style.alignItems = 'flex-start'
+    target.style.marginBottom = '5px'
 
-    // hack! parent element slides open; reset height when it is open
-    element.parentElement.style.height = ''
+    // hack! the element's container slides open; so we need to reset its height when opened
+    list.style.height = ''
     setTimeout(() => {
-      element.parentElement.style.height = ''
+      list.style.height = 'auto'
     }, 200)
   }
 
+  else if (type === 'starter') {
+    parent = target.parentElement
+    target.style.display = 'none'
+  }
+
+  else {
+    return
+  }
+
   // append element
-  parent.appendChild(infoContent)
+  parent.appendChild(content)
+
+  // update target
+  model.content = content
 
   // return
-  return infoContent
+  return model
+}
+
+/**
+ * Load initial data and render
+ *
+ * @param   {TargetModel}   model
+ * @return  {Promise<void>}
+ */
+async function renderData (model) {
+  // create profile class
+  const profile = new Profile(model.handle)
+
+  // load from cache
+  await profile.load()
+  if (profile.data) {
+    renderContent(model, profile)
+  }
+
+  // possibly refresh
+  if (!profile.data || profile.isStale) {
+    await profile.fetch()
+    if (profile.data) {
+      void profile.save()
+      renderContent(model, profile)
+    }
+  }
 }
 
 /**
  * Render info
  *
- * @param   {HTMLElement}   el
+ * @param   {TargetModel}   model
  * @param   {Profile}       profile
  */
-function renderInfo (el, profile) {
+function renderContent (model, profile) {
   const { data } = profile
+  const { content, element } = model
   if (data) {
     // variables
-    let { description, followsCount, followersCount, postsCount } = data
+    let { description, follows, followers, posts, following } = data
+
+    // properties
+    element.classList.toggle('bfi-following', following)
 
     // styling variables
-    const dim = 'opacity: 0.6'
-    const ageClass = profile.isOld ? 'bfi-dim' : 'bfi-text'
+    const ageClass = profile.isOld
+      ? 'bfi-dim'
+      : 'bfi-text'
 
     // if we have a description, condense it
     description = description?.trim()
@@ -318,32 +550,33 @@ function renderInfo (el, profile) {
     }
 
     // build html
-    const followingIcon = data.viewer?.following // unused
-      ? makeIcon('👋', 'You are following this user')
+    const followingIcon = following // unused
+      ? makeIcon('👍', 'You are following this user')
       : ''
-    const postsIcon = postsCount >= 25
+    const postsIcon = posts >= 25
       ? makeIcon('✅', 'User is engaged')
-      : postsCount > 1
+      : posts > 1
         ? makeIcon('📝️', 'User has posted')
         : ''
-    const statusIcon = followersCount > followsCount
+    const statusIcon = followers > follows
       ? makeIcon('🔥', 'User is popular')
       : ''
     const info = `
-      ${postsIcon} <span class="bfi-dim">Posts: ${format(postsCount)} |</span> 
-      ${statusIcon} <span class="bfi-dim">Followers: ${format(followersCount)} | Following: ${format(followsCount)}</span>
+      ${postsIcon} <span class="bfi-dim">Posts: ${format(posts)} |</span> 
+      ${statusIcon} <span class="bfi-dim">Followers: ${format(followers)} | </span>
+      ${followingIcon} <span class="bfi-dim">Following: ${format(follows)}</span>
       `
     const htmlDescription = `<div class="bfi-desc">${description}</div>`
     const htmlInfo = `<div class="bfi-info">${info}</div>`
 
     // set html
-    el.innerHTML = description
+    content.innerHTML = description
       ? htmlDescription + '\n\n' + htmlInfo
       : htmlInfo
   }
   else {
-    el.innerHTML = 'Could not load profile!'
-    el.classList.add('bfi-error')
+    content.innerHTML = 'Could not load profile!'
+    content.classList.add('bfi-error')
   }
 }
 
@@ -366,8 +599,8 @@ function setupPage () {
     threshold: 0
   })
 
-  // target profile links
-  const selector = 'a[href^="/profile/"]:not(.hasProfile)'
+  // target unprocessed profile links
+  const selector = 'a[href^="/profile/"]:not([data-bfi])'
 
   // create a mutation observer to detect when new elements are added
   const observeDOM = new MutationObserver((mutations) => {
@@ -413,6 +646,7 @@ function setupPage () {
 async function start () {
   const result = await Api.init()
   if (result) {
+    await Storage.init()
     setupPage()
   }
   else {
