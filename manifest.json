@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Bluesky Follower Info",
-  "description": "Display new followers' profile descriptions and stats in the Bluesky notifications feed.",
-  "version": "1.4.0",
+  "description": "Display users profile descriptions and stats in notifications feed and starter-packs.",
+  "version": "1.5.0",
   "icons": {
     "32": "icons/icon-32.png",
     "64": "icons/icon-64.png"

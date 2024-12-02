@@ -6,7 +6,7 @@
 
 ## Features
 
-### Extension
+### Content
 
 The extension displays:
 
@@ -20,7 +20,7 @@ The extension displays:
 - Newer followers (< 2 weeks) shown in blue, older ones in grey
 - A blue background for notification summaries (so you don't miss them)
 
-Only on-screen notifications are fetched, then cached (and refreshed if > 1 week old)
+> Only on-screen notifications are fetched, then cached (and refreshed if > 1 week old)
 
 ### Options
 
@@ -30,6 +30,12 @@ The options page lets you configure:
 - Profile (show emojis, compact view)
 - Icons (posted, engaged, popular, following)
 - Thresholds (posted, engaged, stale, old)
+
+### International support
+
+The extension currently supports English, French and Spanish [App Language](https://bsky.app/settings/language) settings.
+
+> To request a new language, please create an issue to help with translations.
 
 ## Screenshots
 

@@ -40,7 +40,7 @@ const { format } = new Intl.NumberFormat('en-US', {
 
 const Storage = {
   // update version if options format changes (use manifest version)
-  version: '1.3.0',
+  version: '1.5.0',
 
   async init () {
     // clear storage if version has changed
@@ -217,12 +217,12 @@ class Profile {
 
   async fetch () {
     const data = await Api.get('app.bsky.actor.getProfile', { actor: this.handle })
-    const { description, followsCount: follows, followersCount: followers, postsCount: posts, viewer } = data
+    const { description, followsCount: followingCount, followersCount, postsCount, viewer } = data
     this.data = {
       description,
-      follows,
-      followers,
-      posts,
+      followingCount,
+      followersCount,
+      postsCount,
       following: !!viewer?.following
     }
     return this
@@ -235,36 +235,66 @@ class Profile {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// sniff elements
+// i18n
 // ---------------------------------------------------------------------------------------------------------------------
 
 // need to sniff by label content
 const i18n = {
   en: {
-    listHide: 'Hide user list',
-    listFollowed: 'followed you',
-    listLiked: 'liked your post',
-    listReposted: 'reposted your post',
-    feedFollowed: 'followed you',
-    avatar: ' avatar',
+    aria: {
+      listHide: 'Hide user list',
+      listFollowed: 'followed you',
+      listLiked: 'liked your post',
+      listReposted: 'reposted your post',
+      feedFollowed: 'followed you',
+      avatar: ' avatar',
+    },
+    labels: {
+      posts: 'Posts',
+      followers: 'Followers',
+      following: 'Following',
+    }
   },
   fr: {
-    listHide: 'Cacher la liste des comptes',
-    listFollowed: 'vous ont suivi',
-    listLiked: 'aimé votre post',
-    listReposted: 'republié votre post',
-    feedFollowed: 'suivi votre compte',
-    avatar: 'avatar de',
+    aria: {
+      listHide: 'Cacher la liste des comptes',
+      listFollowed: 'vous ont suivi',
+      listLiked: 'aimé votre post',
+      listReposted: 'republié votre post',
+      feedFollowed: 'suivi votre compte',
+      avatar: 'avatar de',
+    },
+    labels: {
+      posts: 'Posts',
+      followers: 'Abonnés',
+      following: 'Abonnements',
+    }
   },
   es: {
-    listHide: 'Ocultar lista de usuarios',
-    listFollowed: 'más te siguieron',
-    listLiked: 'más dieron "me gusta" a tu publicación',
-    listReposted: 'más republicaron tu publicación',
-    feedFollowed: 'te siguió',
-    avatar: 'avatar de',
+    aria: {
+      listHide: 'Ocultar lista de usuarios',
+      listFollowed: 'más te siguieron',
+      listLiked: 'más dieron "me gusta" a tu publicación',
+      listReposted: 'más republicaron tu publicación',
+      feedFollowed: 'te siguió',
+      avatar: 'avatar de',
+    },
+    labels: {
+      posts: 'Publications',
+      followers: 'Seguidores',
+      following: 'Siguiendo',
+    }
   }
 }
+
+function getLang(fallback = '') {
+  const lang = document.querySelector('html').lang
+  return i18n[lang] ?? i18n[fallback]
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// sniff elements
+// ---------------------------------------------------------------------------------------------------------------------
 
 /**
  * @typedef {'starter'|'list'|'feed'} TargetType
@@ -291,9 +321,8 @@ const i18n = {
  */
 function getTargetModel (link) {
   // supported languages
-  const lang = document.querySelector('html').lang
-  const labels = i18n[lang]
-  if (!labels) {
+  const aria = getLang()?.aria
+  if (!aria) {
     return
   }
 
@@ -346,9 +375,9 @@ function getTargetModel (link) {
 
       // only process lists if included in options
       const description = summary.nextElementSibling.nextElementSibling.getAttribute('aria-label')
-      const isFollowed = description.includes(labels.listFollowed)
-      const isReposted = description.includes(labels.listReposted)
-      const isLiked = description.includes(labels.listLiked)
+      const isFollowed = description.includes(aria.listFollowed)
+      const isReposted = description.includes(aria.listReposted)
+      const isLiked = description.includes(aria.listLiked)
       if ((isFollowed && !options.process.listFollowed) || (isReposted && !options.process.listReposted) || (isLiked && !options.process.listLiked)) {
         return
       }
@@ -374,7 +403,7 @@ function getTargetModel (link) {
     }
 
     // if we can't yet see the hide list button, the list is closed
-    const hideList = container.querySelector(`[aria-label="${labels.listHide}"]`)
+    const hideList = container.querySelector(`[aria-label="${aria.listHide}"]`)
     if (!hideList) {
       return
     }
@@ -395,7 +424,7 @@ function getTargetModel (link) {
   // -------------------------------------------------------------------------------------------------------------------
 
   // feed item avatar (ignore!)
-  if (link.getAttribute('aria-label')?.includes(labels.avatar)) {
+  if (link.getAttribute('aria-label')?.includes(aria.avatar)) {
     return
   }
 
@@ -404,7 +433,7 @@ function getTargetModel (link) {
   if (element && options.process.feedFollowed) {
     const label = element.getAttribute('aria-label') // only likes and follows get a label; replies don't
     if (label) {
-      if (label?.includes(labels.feedFollowed)) {
+      if (label?.includes(aria.feedFollowed)) {
         return {
           handle,
           type: `feed`,
@@ -546,7 +575,7 @@ function renderContent (model, profile) {
   const { content, element } = model
   if (data) {
     // variables
-    let { description, follows, followers, posts, following } = data
+    let { description, followingCount, followersCount, postsCount, following } = data
 
     // properties
     element.classList.toggle('bfi-following', following)
@@ -574,21 +603,22 @@ function renderContent (model, profile) {
     }
 
     // build html
-    const postsIcon = posts >= options.thresholds.engaged
+    const postsIcon = postsCount >= options.thresholds.engaged
       ? makeIcon(options.icons.engaged, 'User is engaged')
-      : posts > options.thresholds.posted
+      : postsCount > options.thresholds.posted
         ? makeIcon(options.icons.posted, 'User has posted')
         : ''
-    const statusIcon = followers > follows
+    const followersIcon = followersCount > followingCount
       ? makeIcon(options.icons.popular, 'User is popular')
       : ''
     const followingIcon = following // unused
       ? makeIcon(options.icons.following, 'You are following this user')
       : ''
+    const labels = getLang('en').labels
     const info = `
-      ${postsIcon} <span class="bfi-dim">Posts: ${format(posts)} |</span> 
-      ${statusIcon} <span class="bfi-dim">Followers: ${format(followers)} | </span>
-      ${followingIcon} <span class="bfi-dim">Following: ${format(follows)}</span>
+      ${postsIcon} <span class="bfi-dim">${labels.posts}: ${format(postsCount)} |</span> 
+      ${followersIcon} <span class="bfi-dim">${labels.followers}: ${format(followersCount)} | </span>
+      ${followingIcon} <span class="bfi-dim">${labels.following}: ${format(followingCount)}</span>
       `
     const htmlDescription = `<div class="bfi-desc ${options.profile.compact ? 'is-compact' : ''}">${description}</div>`
     const htmlInfo = `<div class="bfi-info">${info}</div>`
