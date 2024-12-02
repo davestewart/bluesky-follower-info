@@ -72,6 +72,18 @@
     width: 16px;
     height: 16px;
   }
+  button {
+    width: 100%;
+    border: none;
+    padding: 12px 20px;
+    margin-top: 8px;
+    background-color: #e7e7e7;
+    cursor: pointer;
+    &:hover {
+      background-color: #f2f2f2;
+    }
+  }
+
   </style>
 </head>
 <body>
@@ -105,7 +117,7 @@
 
   <!-- Profile Section -->
   <div class="section">
-    <h2>Profile</h2>
+    <h2>Profiles</h2>
     <label class="checkbox-label">
       <input type="checkbox" id="profile-emojis">
       <span>Show emojis</span>
@@ -114,6 +126,7 @@
       <input type="checkbox" id="profile-compact">
       <span>Compact view</span>
     </label>
+    <button id="clear-cache">Clear Cache</button>
   </div>
 
   <!-- Icons Section -->
@@ -161,9 +174,6 @@
     </div>
   </div>
 
-  <!--
-  <button id="save-button" class="save-button">Save Settings</button>
-  -->
 </div>
 <script type="module" src="form.js"></script>
 </body>
