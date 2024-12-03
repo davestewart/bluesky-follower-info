@@ -20,6 +20,10 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   }
 
+  .support {
+    margin-top: 16px;
+  }
+
   h2 {
     margin-top: 0;
     font-size: 18px;
@@ -72,15 +76,22 @@
     width: 16px;
     height: 16px;
   }
-  button {
+
+  button, .button {
+    display: block;
+    box-sizing: border-box;
     width: 100%;
     border: none;
+    border-radius: 4px;
     padding: 12px 20px;
-    margin-top: 8px;
-    background-color: #e7e7e7;
+    margin-top: 12px;
+    background-color: #2D92FA;
+    text-align: center;
+    text-decoration: none;
+    color: white;
     cursor: pointer;
     &:hover {
-      background-color: #f2f2f2;
+      background-color: #217EDE;
     }
   }
 
@@ -131,7 +142,7 @@
 
   <!-- Icons Section -->
   <div class="section">
-    <h2>Icons</h2>
+    <h2>Emojis</h2>
     <div class="input-row">
       <label>Posted</label>
       <input type="text" id="icons-posted" maxlength="4">
@@ -172,6 +183,10 @@
       <label>Old (days):</label>
       <input type="number" min="1" id="thresholds-created">
     </div>
+  </div>
+
+  <div class="support">
+    <a class="button" href="https://davestewart.co.uk/products/bluesky-follower-info/?utm_source=extension" target="_support">Support</a>
   </div>
 
 </div>
