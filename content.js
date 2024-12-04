@@ -288,7 +288,8 @@ const i18n = {
 }
 
 function getLang(fallback = '') {
-  const lang = document.querySelector('html').lang
+  const locale = document.querySelector('html').lang || ''
+  const [lang] = locale.split('-')
   return i18n[lang] ?? i18n[fallback]
 }
 
