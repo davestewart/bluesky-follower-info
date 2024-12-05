@@ -17,7 +17,7 @@
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
   .support {
@@ -84,12 +84,13 @@
     border: none;
     border-radius: 4px;
     padding: 12px 20px;
-    margin-top: 12px;
+    margin-top: 20px;
     background-color: #2D92FA;
     text-align: center;
     text-decoration: none;
     color: white;
     cursor: pointer;
+
     &:hover {
       background-color: #217EDE;
     }
@@ -99,39 +100,12 @@
 </head>
 <body>
 <div id="app">
-  <!-- Process Section -->
-  <div class="section">
-    <h2>Processes</h2>
-    <p>Feed</p>
-    <label class="checkbox-label">
-      <input type="checkbox" id="process-feedFollowed">
-      <span>Show followed</span>
-    </label>
-    <p>Lists</p>
-    <label class="checkbox-label">
-      <input type="checkbox" id="process-listFollowed">
-      <span>Show followed</span>
-    </label>
-    <label class="checkbox-label">
-      <input type="checkbox" id="process-listReposted">
-      <span>Show reposted</span>
-    </label>
-    <label class="checkbox-label">
-      <input type="checkbox" id="process-listLiked">
-      <span>Show liked</span>
-    </label>
-    <label class="checkbox-label">
-      <input type="checkbox" id="process-listHighlight">
-      <span>Highlight list</span>
-    </label>
-  </div>
-
   <!-- Profile Section -->
   <div class="section">
     <h2>Profiles</h2>
     <label class="checkbox-label">
       <input type="checkbox" id="profile-emojis">
-      <span>Show emojis</span>
+      <span>Use emojis</span>
     </label>
     <label class="checkbox-label">
       <input type="checkbox" id="profile-compact">
@@ -140,7 +114,35 @@
     <button id="clear-cache">Clear Cache</button>
   </div>
 
-  <!-- Icons Section -->
+  <!-- Locations Section -->
+  <div class="section">
+    <h2>Locations</h2>
+    <p>Feed</p>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-feedFollowed">
+      <span>Followed</span>
+    </label>
+    <p>Lists</p>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-listFollowed">
+      <span>Followed</span>
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-listReposted">
+      <span>Reposted</span>
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-listLiked">
+      <span>Liked</span>
+    </label>
+    <p>Options</p>
+    <label class="checkbox-label">
+      <input type="checkbox" id="process-listHighlight">
+      <span>Highlight lists</span>
+    </label>
+  </div>
+
+  <!-- Emojis Section -->
   <div class="section">
     <h2>Emojis</h2>
     <div class="input-row">
@@ -161,10 +163,11 @@
     </div>
   </div>
 
+
   <!-- Thresholds Section -->
   <div class="section">
     <h2>Thresholds</h2>
-    <p>Posts required to show an icon</p>
+    <p>Posts required to show an emoji</p>
     <div class="input-row">
       <label>Posted (posts):</label>
       <input type="number" min="1" id="thresholds-posted">
@@ -186,7 +189,8 @@
   </div>
 
   <div class="support">
-    <a class="button" href="https://davestewart.co.uk/products/bluesky-follower-info/?utm_source=extension" target="_support">Support</a>
+    <a class="button" href="https://davestewart.co.uk/products/bluesky-follower-info/?utm_source=extension"
+       target="_support">Support</a>
   </div>
 
 </div>
