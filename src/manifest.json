@@ -4,8 +4,9 @@
   "description": "Display users profile descriptions and stats in notifications feed and starter-packs.",
   "version": "1.6.3",
   "icons": {
-    "32": "icons/icon-32.png",
-    "64": "icons/icon-64.png"
+    "32": "assets/icon-32.png",
+    "64": "assets/icon-64.png",
+    "128": "assets/icon-128.png"
   },
   "permissions": [
     "scripting",
@@ -20,8 +21,8 @@
   },
   "content_scripts": [{
     "matches": ["*://*.bsky.app/*"],
-    "js": ["content.js"],
-    "css": ["content.css"]
+    "js": ["content/content.js"],
+    "css": ["content/content.css"]
   }],
   "options_ui": {
     "page": "options/index.html"
