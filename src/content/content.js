@@ -159,6 +159,17 @@ const Api = {
 // models
 // ---------------------------------------------------------------------------------------------------------------------
 
+/**
+ * Describes the profile data that is saved
+ *
+ * @typedef ProfileData
+ * @property {string}   [description]
+ * @property {number}   followingCount
+ * @property {number}   followersCount
+ * @property {number}   postsCount
+ * @property {boolean}  following
+ */
+
 class Profile {
   /**
    * @type {string}
@@ -166,7 +177,7 @@ class Profile {
   handle
 
   /**
-   * @type {description: string | undefined, follows: number, followers: number, posts: number, following: boolean }
+   * @type {ProfileData}
    */
   data
 
@@ -248,11 +259,14 @@ const i18n = {
       listReposted: 'reposted your post',
       feedFollowed: 'followed you',
       avatar: ' avatar',
+      follow: 'Follow',
+      following: 'Following',
     },
     labels: {
       posts: 'Posts',
       followers: 'Followers',
       following: 'Following',
+      follow: 'Follow',
     }
   },
   fr: {
@@ -263,6 +277,8 @@ const i18n = {
       listReposted: 'republié votre post',
       feedFollowed: 'suivi votre compte',
       avatar: 'avatar de',
+      follow: 'Suivre',
+      following: 'Suivi',
     },
     labels: {
       posts: 'Posts',
@@ -278,6 +294,8 @@ const i18n = {
       listReposted: 'más republicaron tu publicación',
       feedFollowed: 'te siguió',
       avatar: 'avatar de',
+      follow: 'Seguir',
+      following: 'Siguiendo',
     },
     labels: {
       posts: 'Publications',
@@ -447,8 +465,16 @@ function getTargetModel (link) {
   }
 }
 
-// process each element based on its type
-async function processElement (link) {
+// ---------------------------------------------------------------------------------------------------------------------
+// handlers
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Process profile links when they become visible
+ *
+ * @param   {HTMLLinkElement} link
+ */
+async function onProfileLinkRevealed (link) {
   // test element
   const model = getTargetModel(link)
 
@@ -458,7 +484,72 @@ async function processElement (link) {
   // add content
   if (model) {
     if(buildElements(model)) {
-      void renderData(model)
+      // variables
+      const { content, handle } = model
+
+      // create profile class
+      const profile = new Profile(handle)
+
+      // load from cache
+      await profile.load()
+      if (profile.data) {
+        renderContent(content, profile)
+      }
+
+      // possibly refresh
+      if (!profile.data || profile.isStale) {
+        await profile.fetch()
+        if (profile.data) {
+          void profile.save()
+          renderContent(content, profile)
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Process buttons when they are rendered
+ *
+ * @param {HTMLButtonElement} button
+ * @param {string}            handle
+ */
+async function onFollowButtonRendered (button, handle) {
+  const label = button.getAttribute('aria-label')
+  if (label) {
+    const { follow, following } = getLang().aria
+    const action = label === following
+      ? 'follow'
+      : label === follow
+        ? 'unfollow'
+        : null
+
+    // we got a follow / unfollow
+    if (action) {
+      const profile = new Profile(handle)
+      await profile.fetch()
+      if (profile.data) {
+        // update followers count (need to fake this, as the API won't have updated between the click and the fetch)
+        profile.data.followersCount += (
+          action === 'follow'
+            ? profile.data.following
+              ? 0
+              : 1
+            : -1
+        )
+
+        // update following
+        profile.data.following = action === 'follow'
+
+        // update content
+        const sections = document.querySelectorAll(`.bfi-content[data-handle="${handle}"]`)
+        sections.forEach(section => {
+          renderContent(section, profile)
+        })
+
+        // save profile
+        await profile.save()
+      }
     }
   }
 }
@@ -474,7 +565,7 @@ async function processElement (link) {
  */
 function buildElements (model) {
   // variables
-  const { type, target, element, avatar, list } = model
+  const { type, target, element, handle, avatar, list } = model
   let parent
 
   // add debug classes
@@ -486,6 +577,7 @@ function buildElements (model) {
   const content = document.createElement('div')
   content.innerHTML = '<span class="bfi-dim">Loading...</span> '
   content.className = 'bfi-content'
+  content.dataset['handle'] = handle
 
   // elements
   if (type === 'feed') {
@@ -540,46 +632,16 @@ function buildElements (model) {
 }
 
 /**
- * Load initial data and render
- *
- * @param   {TargetModel}   model
- * @return  {Promise<void>}
- */
-async function renderData (model) {
-  // create profile class
-  const profile = new Profile(model.handle)
-
-  // load from cache
-  await profile.load()
-  if (profile.data) {
-    renderContent(model, profile)
-  }
-
-  // possibly refresh
-  if (!profile.data || profile.isStale) {
-    await profile.fetch()
-    if (profile.data) {
-      void profile.save()
-      renderContent(model, profile)
-    }
-  }
-}
-
-/**
  * Render info
  *
- * @param   {TargetModel}   model
+ * @param   {HTMLElement}   content
  * @param   {Profile}       profile
  */
-function renderContent (model, profile) {
+function renderContent (content, profile) {
   const { data } = profile
-  const { content, element } = model
   if (data) {
     // variables
     let { description, followingCount, followersCount, postsCount, following } = data
-
-    // properties
-    element.classList.toggle('bfi-following', following)
 
     // styling variables
     const ageClass = profile.isOld
@@ -639,12 +701,12 @@ function renderContent (model, profile) {
 // observe dom
 // ---------------------------------------------------------------------------------------------------------------------
 
-function setupPage () {
+function observeProfileLinks (process) {
   // create an intersection observer to detect when elements are in view
   const observeVisibility = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
-        void processElement(entry.target)
+        void process(entry.target)
         // stop observing once processed
         observeVisibility.unobserve(entry.target)
       }
@@ -694,6 +756,35 @@ function setupPage () {
   }
 }
 
+function observeFollowButtons (process) {
+  // create a mutation observer to watch for button state changes
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.target.matches('button[aria-label]')) {
+        const button = mutation.target
+        const profileLink = button.parentElement.querySelector('a[href^="/profile/"]')
+
+        if (profileLink) {
+          // find the handle (@username) in the profile card
+          const handle = profileLink.getAttribute('href').split('/').pop()
+          if (handle) {
+            process(button, handle)
+          }
+        }
+      }
+    })
+  })
+
+  // configure the observer to watch for attribute changes on buttons
+  const observerConfig = {
+    attributes: true,
+    subtree: true,
+    attributeFilter: ['aria-label']
+  }
+
+  // start observing the document
+  observer.observe(document.body, observerConfig)
+}
 
 // ---------------------------------------------------------------------------------------------------------------------
 // options
@@ -718,7 +809,8 @@ async function start () {
   if (result) {
     await Storage.init()
     await setupOptions()
-    setupPage()
+    observeProfileLinks(onProfileLinkRevealed)
+    observeFollowButtons(onFollowButtonRendered)
   }
   else {
     setTimeout(start, 1000)

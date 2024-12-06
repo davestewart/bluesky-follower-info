@@ -47,6 +47,11 @@ Notifications feed:
 
 ![screenshot.png](assets/screenshot-feed.png)
 
+
+Video:
+
+- [Follow / Unfollow](https://bsky.app/profile/did:plc:n2xk2ztwx5asqq4v6aocd45o/post/3lcn2pyrxe22f)
+
 ## Installation
 
 Install from the Chrome Web Store:
