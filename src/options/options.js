@@ -1,16 +1,20 @@
 export const defaults = {
   process: {
-    listHighlight: true,
+    feedFollowed: true,
     listFollowed: true,
     listReposted: true,
     listLiked: true,
-    feedFollowed: true,
+  },
+  behavior: {
+    highlightLists: true,
+    expandProfiles: true,
   },
   profile: {
     emojis: true,
     compact: true,
   },
   icons: {
+    profile: 'ℹ️',
     posted: '📝',
     engaged: '✅',
     popular: '🔥',

@@ -7,22 +7,107 @@
   transition: height .7s ease !important;
 }
 
+.bfi-element:last-child {
+  margin-bottom: 10px;
+}
+
 .bfi-target {
   overflow: visible !important;
   -webkit-box-orient: unset;
+  height: unset !important;
+  align-items: flex-start !important;
+  margin-bottom: 5px;
+}
+
+.bfi-wrapper {
+  min-height: 32px !important;
+  min-width: 0;
+  flex-grow: 1;
+  padding-left: 4px;
+  width: calc(100% - 40px);
+  .bfi-element[data-bfi-visible="0"] & {
+    align-content: center;
+  }
+}
+
+.bfi-element {
+  width: 100%;
+  min-width: 0;
+
+  .bfi-title {
+    width: 100%;
+    overflow: hidden;
+    min-height: 35px;
+    padding-right: 1rem !important;
+    flex-direction: row !important;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    flex-basis: auto;
+
+    > * {
+      display: flex;
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 1;
+      gap: 4px;
+      > * {
+        flex-shrink: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+        gap: 4px;
+      }
+    }
+  }
+}
+
+.bfi-toggle {
+  width: 32px;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+
+  opacity: 0;
+  transition: opacity .7s ease;
+  .bfi-container:hover & {
+    transition: opacity .2s ease;
+    opacity: 1;
+  }
+
+  svg {
+    width: 20px;
+    height: 32px;
+    opacity: 0.3;
+  }
+
+  &:hover svg {
+    opacity: 1;
+  }
 }
 
 .bfi-content {
+  margin-top: -5px;
   font-size: 12px;
   font-weight: 400;
   -webkit-font-smoothing: subpixel-antialiased;
   white-space: normal;
   letter-spacing: 0.25px;
-  margin-bottom: 10px;
+  padding-bottom: 10px;
+
+  .bfi-element[data-bfi-visible="0"] & {
+    display: none;
+  }
 }
 
 .bfi-desc {
   white-space: pre-wrap;
+
   &.is-compact {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -33,7 +118,9 @@
 
 .bfi-info {
   margin-top: 5px;
-  vertical-align: middle;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   line-height: 1;
 }
 
@@ -45,15 +132,28 @@
   color: #5292d7;
 }
 
-.bfi-icon {
+.bfi-content .bfi-emoji {
   line-height: 1em;
-  font-size:1.4em;
-  vertical-align: -5%;
+  font-size: 1.2em;
 }
 
-.bfu-sep,
+.bfi-emojis {
+  display: flex;
+  gap: 4px;
+  margin-left: 4px;
+  align-items: center;
+  flex-shrink: 0 !important;
+  span {
+    font-size: .8em;
+  }
+}
+
 .bfi-dim {
   opacity: 0.6;
+}
+
+.bfi-sep {
+  opacity: 0.2;
 }
 
 .bfi-error {
@@ -87,3 +187,5 @@ body.debug {
     outline-color: #2d92fa;
   }
 }
+
+

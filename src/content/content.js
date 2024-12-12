@@ -12,6 +12,11 @@ function warn (...args) {
   console.warn(NAME, ...args)
 }
 
+const { format } = new Intl.NumberFormat('en-US', {
+  // notation: 'compact',
+  // compactDisplay: 'short'
+})
+
 function isOlderThan (time, days = 1) {
   const DAY = 1000 * 60 * 60 * 24
   const period = DAY * days
@@ -24,15 +29,6 @@ function stripEmojis (text) {
     .replace(emojisAndFlags, '')
     .replace(/\u200D/g, '')
 }
-
-function makeIcon (icon, title) {
-  return `<span class="bfi-icon" title="${title}">${icon}</span>`
-}
-
-const { format } = new Intl.NumberFormat('en-US', {
-  // notation: 'compact',
-  // compactDisplay: 'short'
-})
 
 // ---------------------------------------------------------------------------------------------------------------------
 // classes
@@ -111,7 +107,7 @@ const Api = {
       method,
       headers: {
         'authorization': `Bearer ${token}`,
-        'content-type': 'application/json',
+        'content-type': 'application/json'
       }
     }
 
@@ -182,6 +178,11 @@ class Profile {
   data
 
   /**
+   * @type {boolean}
+   */
+  visible
+
+  /**
    * @type {number}
    */
   created
@@ -203,15 +204,29 @@ class Profile {
     return this.data && this.created && isOlderThan(this.updated, options.thresholds.created)
   }
 
+  static pool = {}
+
+  static get (handle) {
+    let profile = this.pool[handle]
+    if (!profile) {
+      this.pool[handle] = profile = new Profile(handle)
+    }
+    return profile
+  }
+
   constructor (handle) {
     this.handle = handle
+    this.visible = options.behavior.expandProfiles
   }
 
   async load () {
     const item = await Storage.get(this.storageKey)
-    this.created = item.created
-    this.updated = item.updated
-    this.data = item.data
+    if (item) {
+      this.created = item.created
+      this.updated = item.updated
+      this.visible = item.visible ?? this.visible
+      this.data = item.data
+    }
     return this
   }
 
@@ -220,6 +235,7 @@ class Profile {
     const item = {
       created: this.created || NOW,
       updated: NOW,
+      visible: this.visible,
       data: this.data
     }
     void Storage.set(this.storageKey, item)
@@ -227,6 +243,11 @@ class Profile {
   }
 
   async fetch () {
+    if (!this.created) {
+      await this.load()
+    }
+
+    // load data
     const data = await Api.get('app.bsky.actor.getProfile', { actor: this.handle })
     const { description, followsCount: followingCount, followersCount, postsCount, viewer } = data
     this.data = {
@@ -236,12 +257,19 @@ class Profile {
       postsCount,
       following: !!viewer?.following
     }
+
+    // return
     return this
   }
 
-  async mute () {
-    await Api.post('app.bsky.graph.muteActor', { actor: this.handle })
-    void Storage.remove(this.storageKey, this.handle)
+  async show (state = true) {
+    this.visible = state
+    await this.save()
+  }
+
+  async mute (state = true) {
+    const method = state ? 'mute' : 'unmute'
+    await Api.post(`app.bsky.graph.${method}Actor`, { actor: this.handle })
   }
 }
 
@@ -260,13 +288,13 @@ const i18n = {
       feedFollowed: 'followed you',
       avatar: ' avatar',
       follow: 'Follow',
-      following: 'Following',
+      following: 'Following'
     },
     labels: {
       posts: 'Posts',
       followers: 'Followers',
       following: 'Following',
-      follow: 'Follow',
+      follow: 'Follow'
     }
   },
   fr: {
@@ -278,12 +306,12 @@ const i18n = {
       feedFollowed: 'suivi votre compte',
       avatar: 'avatar de',
       follow: 'Suivre',
-      following: 'Suivi',
+      following: 'Suivi'
     },
     labels: {
       posts: 'Posts',
       followers: 'Abonnés',
-      following: 'Abonnements',
+      following: 'Abonnements'
     }
   },
   es: {
@@ -295,17 +323,17 @@ const i18n = {
       feedFollowed: 'te siguió',
       avatar: 'avatar de',
       follow: 'Seguir',
-      following: 'Siguiendo',
+      following: 'Siguiendo'
     },
     labels: {
       posts: 'Publications',
       followers: 'Seguidores',
-      following: 'Siguiendo',
+      following: 'Siguiendo'
     }
   }
 }
 
-function getLang(fallback = '') {
+function getLang (fallback = '') {
   const locale = document.querySelector('html').lang || ''
   const [lang] = locale.split('-')
   return i18n[lang] ?? i18n[fallback]
@@ -322,7 +350,7 @@ function getLang(fallback = '') {
 /**
  * Describes the target elements and relations
  *
- * @typedef TargetModel
+ * @typedef ContentModel
  * @property {string}       handle        The user's handle
  * @property {TargetType}   type          The type of element
  * @property {HTMLElement}  element       The containing element
@@ -336,9 +364,9 @@ function getLang(fallback = '') {
  * Returns element model
  *
  * @param   {HTMLLinkElement} link
- * @return  {TargetModel|undefined}
+ * @return  {ContentModel|undefined}
  */
-function getTargetModel (link) {
+function getContentModel (link) {
   // supported languages
   const aria = getLang()?.aria
   if (!aria) {
@@ -371,7 +399,7 @@ function getTargetModel (link) {
           type: 'starter',
           element: link,
           target: link.querySelector('[data-word-wrap="1"]'),
-          avatar,
+          avatar
         }
       }
     }
@@ -405,7 +433,7 @@ function getTargetModel (link) {
       container.classList.add('bfi-container')
 
       // list highlight option
-      if (!options.process.listHighlight) {
+      if (!options.behavior.highlightLists) {
         container.classList.add('no-highlight')
       }
     }
@@ -434,7 +462,7 @@ function getTargetModel (link) {
       element: link,
       target: link,
       avatar: getAvatar(link),
-      list,
+      list
     }
   }
 
@@ -466,102 +494,50 @@ function getTargetModel (link) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// handlers
-// ---------------------------------------------------------------------------------------------------------------------
-
-/**
- * Process profile links when they become visible
- *
- * @param   {HTMLLinkElement} link
- */
-async function onProfileLinkRevealed (link) {
-  // test element
-  const model = getTargetModel(link)
-
-  // don't reprocess
-  link.setAttribute('data-bfi', '1')
-
-  // add content
-  if (model) {
-    if(buildElements(model)) {
-      // variables
-      const { content, handle } = model
-
-      // create profile class
-      const profile = new Profile(handle)
-
-      // load from cache
-      await profile.load()
-      if (profile.data) {
-        renderContent(content, profile)
-      }
-
-      // possibly refresh
-      if (!profile.data || profile.isStale) {
-        await profile.fetch()
-        if (profile.data) {
-          void profile.save()
-          renderContent(content, profile)
-        }
-      }
-    }
-  }
-}
-
-/**
- * Process buttons when they are rendered
- *
- * @param {HTMLButtonElement} button
- * @param {string}            handle
- */
-async function onFollowButtonRendered (button, handle) {
-  const label = button.getAttribute('aria-label')
-  if (label) {
-    const { follow, following } = getLang().aria
-    const action = label === following
-      ? 'follow'
-      : label === follow
-        ? 'unfollow'
-        : null
-
-    // we got a follow / unfollow
-    if (action) {
-      const profile = new Profile(handle)
-      await profile.fetch()
-      if (profile.data) {
-        // update followers count (need to fake this, as the API won't have updated between the click and the fetch)
-        profile.data.followersCount += (
-          action === 'follow'
-            ? profile.data.following
-              ? 0
-              : 1
-            : -1
-        )
-
-        // update following
-        profile.data.following = action === 'follow'
-
-        // update content
-        const sections = document.querySelectorAll(`.bfi-content[data-handle="${handle}"]`)
-        sections.forEach(section => {
-          renderContent(section, profile)
-        })
-
-        // save profile
-        await profile.save()
-      }
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
 // create elements
 // ---------------------------------------------------------------------------------------------------------------------
+
+function makeEmoji (icon, title) {
+  return `<span class="bfi-emoji" title="${title}">${icon}</span>`
+}
+
+function makeEmojis (data) {
+  const { description, followingCount, followersCount, postsCount, following } = data
+  return {
+    profile: description
+      ? makeEmoji(options.icons.profile, 'User has profile description')
+      : '',
+    posts: postsCount >= options.thresholds.engaged
+      ? makeEmoji(options.icons.engaged, 'User is engaged')
+      : postsCount > options.thresholds.posted
+        ? makeEmoji(options.icons.posted, 'User has posted')
+        : '',
+    followers: followersCount > followingCount
+      ? makeEmoji(options.icons.popular, 'User is popular')
+      : '',
+    following: following
+      ? makeEmoji(options.icons.following, 'You are following this user')
+      : ''
+  }
+}
+
+function makeInfo (icon, text, count, sep) {
+  return `${icon} <span class="bfi-dim">${text}: ${format(count)}${sep ? ' | ' : ''}</span>`
+}
+
+const icons = {
+  chevronDown: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>`,
+  chevronUp: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" /></svg>`,
+  ellipsis: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>`,
+  xMark: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`,
+  minus: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" /></svg>`,
+  plus: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>`
+}
 
 /**
  * Build target elements
  *
- * @param {TargetModel} model
+ * @param {ContentModel} model
  */
 function buildElements (model) {
   // variables
@@ -575,7 +551,6 @@ function buildElements (model) {
 
   // content
   const content = document.createElement('div')
-  content.innerHTML = '<span class="bfi-dim">Loading...</span> '
   content.className = 'bfi-content'
   content.dataset['handle'] = handle
 
@@ -587,23 +562,28 @@ function buildElements (model) {
 
   else if (type === 'list') {
     // elements
+    const [avatar, title] = target.childNodes
     const wrapper = document.createElement('div')
-    const [avatar, textContent] = target.childNodes
+    wrapper.classList.add('bfi-wrapper')
+    title.classList.add('bfi-title')
+
+    // state
+    element.dataset.bfiVisible = String(Number(!!options.behavior.expandProfiles))
 
     // re-layout components
-    target.insertBefore(wrapper, textContent)
-    wrapper.appendChild(textContent)
+    target.insertBefore(wrapper, title)
+    wrapper.appendChild(title)
     parent = wrapper
 
-    // style content
-    avatar.style.paddingTop = '3px'
-    wrapper.style.paddingLeft = '4px'
-    textContent.style.paddingBottom = '3px'
+    // insert toggle button
+    const toggle = document.createElement('button')
+    toggle.classList.add('bfi-toggle')
+    element.appendChild(toggle)
 
-    // reset original wrapper
-    target.style.height = ''
-    target.style.alignItems = 'flex-start'
-    target.style.marginBottom = '5px'
+    // insert emojis container
+    const emojis = document.createElement('span')
+    emojis.classList.add('bfi-emojis')
+    title.firstChild.appendChild(emojis)
 
     // hack! the element's container slides open; so we need to reset its height when opened
     list.style.height = ''
@@ -638,13 +618,12 @@ function buildElements (model) {
  * @param   {Profile}       profile
  */
 function renderContent (content, profile) {
-  const { data } = profile
-  if (data) {
+  if (profile.data) {
     // variables
-    let { description, followingCount, followersCount, postsCount, following } = data
+    let { description, followingCount, followersCount, postsCount, following } = profile.data
 
     // styling variables
-    const ageClass = profile.isOld
+    const descriptionClass = profile.isOld
       ? 'bfi-dim'
       : 'bfi-text'
 
@@ -661,39 +640,171 @@ function renderContent (content, profile) {
         .map(line => line.replace(/^- /g, ' ').trim()) // remove dash bullets
         .map(line => options.profile.emojis ? line : stripEmojis(line).trim()) // remove emojis
         .filter(line => line.length > 0) // trim empty lines
-        .map(line => `<span class="${ageClass}">${line}</span>`) // format text
+        .map(line => `<span class="${descriptionClass}">${line}</span>`) // format text
         .join(` <span class="bfi-sep">|</span> `) // join
     }
 
-    // build html
-    const postsIcon = postsCount >= options.thresholds.engaged
-      ? makeIcon(options.icons.engaged, 'User is engaged')
-      : postsCount > options.thresholds.posted
-        ? makeIcon(options.icons.posted, 'User has posted')
-        : ''
-    const followersIcon = followersCount > followingCount
-      ? makeIcon(options.icons.popular, 'User is popular')
-      : ''
-    const followingIcon = following // unused
-      ? makeIcon(options.icons.following, 'You are following this user')
-      : ''
+    // html parts
     const labels = getLang('en').labels
-    const info = `
-      ${postsIcon} <span class="bfi-dim">${labels.posts}: ${format(postsCount)} |</span> 
-      ${followersIcon} <span class="bfi-dim">${labels.followers}: ${format(followersCount)} | </span>
-      ${followingIcon} <span class="bfi-dim">${labels.following}: ${format(followingCount)}</span>
-      `
+    const emojis = makeEmojis(profile.data)
+    const info = [
+      makeInfo(emojis.posts, labels.posts, postsCount, true),
+      makeInfo(emojis.followers, labels.followers, followersCount, true),
+      makeInfo(emojis.following, labels.following, followingCount)
+    ]
+
+    // final html
     const htmlDescription = `<div class="bfi-desc ${options.profile.compact ? 'is-compact' : ''}">${description}</div>`
-    const htmlInfo = `<div class="bfi-info">${info}</div>`
+    const htmlInfo = `<div class="bfi-info">${info.join('')}</div>`
 
     // set html
     content.innerHTML = description
       ? htmlDescription + '\n\n' + htmlInfo
       : htmlInfo
+
+    // toggle
+    const element = content.closest('.bfi-element')
+    const toggle = element.querySelector('.bfi-toggle')
+    if (toggle) {
+      // update function
+      const updateToggle = () => {
+        // state
+        const visible = profile.visible
+        toggle.setAttribute('title', visible ? 'Hide' : 'Show')
+        element.dataset.bfiVisible = String(Number(visible))
+
+        // emojis
+        const emojis = makeEmojis(profile.data)
+        element.querySelector('.bfi-emojis').innerHTML = !visible
+          ? [emojis.profile, emojis.posts, emojis.followers, emojis.following].join(' ')
+          : ''
+
+        // toggle
+        toggle.innerHTML = visible
+          ? icons.minus
+          : icons.plus
+      }
+
+      // update immediately
+      updateToggle()
+
+      // update on click
+      if (!toggle.dataset.bfiToggle) {
+        // ensure added only once
+        toggle.dataset.bfiToggle = '1'
+
+        // click handler
+        toggle.addEventListener('click', (event) => {
+          event.preventDefault()
+          event.stopImmediatePropagation()
+          const visible = profile.visible // element.dataset.bfiVisible === '1'
+          void profile.show(!visible)
+          updateToggle()
+        })
+      }
+    }
   }
   else {
     content.innerHTML = 'Could not load profile!'
     content.classList.add('bfi-error')
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// handlers
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Process profile links when they become visible
+ *
+ * @param   {HTMLLinkElement} link
+ */
+async function onProfileLinkRevealed (link) {
+  // test element
+  const model = getContentModel(link)
+
+  // don't reprocess
+  link.setAttribute('data-bfi', '1')
+
+  // add content
+  if (model) {
+    if (buildElements(model)) {
+      // variables
+      const { content, handle } = model
+
+      // create profile class
+      const profile = Profile.get(handle)
+
+      // load from cache
+      await profile.load()
+      const firstLoad = !profile.created
+      if (profile.data) {
+        renderContent(content, profile)
+      }
+
+      // possibly refresh
+      if (!profile.data || profile.isStale) {
+        // fetch new data
+        await profile.fetch()
+        if (profile.data) {
+          // if first load, and already following, minimise
+          if (firstLoad && profile.data.following) {
+            profile.visible = false
+          }
+
+          // save updated data
+          void profile.save()
+          renderContent(content, profile)
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Process buttons when they are rendered
+ *
+ * @param {HTMLButtonElement} button
+ * @param {string}            handle
+ */
+async function onFollowButtonRendered (button, handle) {
+  const label = button.getAttribute('aria-label')
+  if (label) {
+    const { follow, following } = getLang().aria
+    const action = label === following
+      ? 'follow'
+      : label === follow
+        ? 'unfollow'
+        : null
+
+    // we got a follow / unfollow
+    if (action) {
+      const profile = Profile.get(handle)
+      await profile.load()
+      await profile.fetch()
+      if (profile.data) {
+        // update followers count (need to fake this, as the API won't have updated between the click and the fetch)
+        profile.data.followersCount += (
+          action === 'follow'
+            ? profile.data.following
+              ? 0
+              : 1
+            : -1
+        )
+
+        // update following
+        profile.data.following = action === 'follow'
+
+        // save profile
+        await profile.save()
+
+        // update content
+        const sections = document.querySelectorAll(`.bfi-content[data-handle="${handle}"]`)
+        sections.forEach(section => {
+          renderContent(section, profile)
+        })
+      }
+    }
   }
 }
 

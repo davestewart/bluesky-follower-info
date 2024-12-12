@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "release": "node release.js"
+  }
+}

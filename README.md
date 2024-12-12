@@ -10,26 +10,32 @@
 
 The extension displays:
 
-- Profile description (tidied)
-- Posts, followers and following counts
-- Icons for:
-  - 📝 Posted
-  - ✅ Engaged (more than 25 posts)
-  - 🔥 Popular (more followers than following)
-  - 👍 Following
+- profile description (tidied)
+- posts, followers and following counts
+- icons for:
+  - 📝 posted
+  - ✅ engaged (more than 25 posts)
+  - 🔥 popular (more followers than following)
+  - 👍 following
 - Newer followers (< 2 weeks) shown in blue, older ones in grey
-- A blue background for notification summaries (so you don't miss them)
+- a blue background for notification summaries (so you don't miss them)
 
-> Only on-screen notifications are fetched, then cached (and refreshed if > 1 week old)
+> Note: only on-screen notifications are fetched, then cached (and refreshed if > 1 week old)
+
+Profiles are also collapsible:
+
+- profiles are expanded by default
+- profiles remember their collapsed / expanded state by user
+- collapsed profiles also show icons for quick reference
 
 ### Options
 
 The options page lets you configure:
 
-- Process (lists, feed, follows, reposts, likes)
-- Profile (show emojis, compact view)
-- Icons (posted, engaged, popular, following)
-- Thresholds (posted, engaged, stale, old)
+- profile (truncate text, include emojis, expanded state)
+- locations (feed, lists, follows, reposts, likes, highlighted lists)
+- emojis (profile, posted, engaged, popular, following)
+- thresholds (posted, engaged, stale, old)
 
 ### International support
 
@@ -37,16 +43,9 @@ The extension currently supports English, French and Spanish [App Language](http
 
 > To request a new language, please create an issue to help with translations.
 
-## Screenshots
+## Media
 
-Notifications summary:
-
-![screenshot.png](assets/screenshot-summary.png)
-
-Notifications feed:
-
-![screenshot.png](assets/screenshot-feed.png)
-
+![screenshot.png](assets/screenshot.png)
 
 Video:
 

@@ -95,25 +95,10 @@
       background-color: #217EDE;
     }
   }
-
   </style>
 </head>
 <body>
 <div id="app">
-  <!-- Profile Section -->
-  <div class="section">
-    <h2>Profiles</h2>
-    <label class="checkbox-label">
-      <input type="checkbox" id="profile-emojis">
-      <span>Use emojis</span>
-    </label>
-    <label class="checkbox-label">
-      <input type="checkbox" id="profile-compact">
-      <span>Compact view</span>
-    </label>
-    <button id="clear-cache">Clear Cache</button>
-  </div>
-
   <!-- Locations Section -->
   <div class="section">
     <h2>Locations</h2>
@@ -135,16 +120,40 @@
       <input type="checkbox" id="process-listLiked">
       <span>Liked</span>
     </label>
-    <p>Options</p>
+    <p>List options</p>
     <label class="checkbox-label">
-      <input type="checkbox" id="process-listHighlight">
-      <span>Highlight lists</span>
+      <input type="checkbox" id="behavior-highlightLists">
+      <span>Highlight</span>
     </label>
+  </div>
+
+  <!-- Profile Section -->
+  <div class="section">
+    <h2>Profiles</h2>
+    <p>Content</p>
+    <label class="checkbox-label">
+      <input type="checkbox" id="profile-compact">
+      <span>Truncate text</span>
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="profile-emojis">
+      <span>Include emojis</span>
+    </label>
+    <p>Behaviour</p>
+    <label class="checkbox-label">
+      <input type="checkbox" id="behavior-expandProfiles">
+      <span>Expand by default</span>
+    </label>
+    <button id="clear-cache">Clear Cache</button>
   </div>
 
   <!-- Emojis Section -->
   <div class="section">
     <h2>Emojis</h2>
+    <div class="input-row">
+      <label>Profile</label>
+      <input type="text" id="icons-profile" maxlength="4">
+    </div>
     <div class="input-row">
       <label>Posted</label>
       <input type="text" id="icons-posted" maxlength="4">
@@ -162,7 +171,6 @@
       <input type="text" id="icons-following" maxlength="4">
     </div>
   </div>
-
 
   <!-- Thresholds Section -->
   <div class="section">
